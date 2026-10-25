@@ -1,32 +1,42 @@
 # Dry Cleaner CRM
 
-A simple order-management and customer-reminder system for dry cleaners.
-It runs on one computer at the counter, in a web browser, with **no
-dependencies to install**: just Node.js.
+Order management with text and email reminders for dry cleaners. One
+installation serves many shops: each dry cleaner signs up for its own
+account and only ever sees its own customers, orders and messages.
+
+It needs **no dependencies**: just Node.js.
 
 ## Features
 
-- **Orders / tickets**: create a ticket with line items from your price list
-  (or custom items), quantity, discount, deposit, due date, rack/bin location
-  and notes (stains, damage). Ticket numbers are assigned automatically.
-- **Order workflow**: Received → Cleaning → Ready → Picked up (or Cancelled),
-  with timestamps for each step.
-- **Automatic "ready" texts**: when an order is marked Ready, the customer gets
-  a text message (can be turned off).
-- **Pickup reminders**: orders left on the rack get reminders automatically.
-  You choose how many days to wait before the first one, how often to repeat,
-  and the maximum number of reminders.
-- **Customers**: contact info, preferences (starch, hangers vs. boxed),
-  notes, SMS opt-out, order history, lifetime value, and one-off messages.
-- **Payments**: record payments or deposits and track unpaid balances.
-- **Price list**: edit your services and prices. Services used on past
-  orders are deactivated instead of deleted, so order history stays intact.
-- **Dashboard**: orders in process, ready for pickup, due or overdue, today's
-  sales and unpaid balances.
-- **Printable tickets** sized for receipt printers (80mm).
-- **Message log**: every text the system sends, with its delivery status.
-- Editable message templates, sales tax, and turnaround time.
-- Optional password protection.
+**Accounts**
+- Sign up (creates a shop and its owner login), log in, log out
+- Forgot-password emails with single-use, 1-hour reset links
+- Team: owners add staff logins. Staff handle orders and customers; only
+  owners change settings, prices and the team.
+- Passwords hashed with scrypt, HttpOnly session cookies, login rate
+  limiting, cross-site request protection
+
+**Text and email notifications**
+- "Your order is ready" notice, sent automatically when an order is marked Ready
+- Automatic pickup reminders: first after N days, repeating every N days, up to a maximum
+- One-off messages to a customer by text, email or both
+- Each shop edits its own wording for texts and emails, using placeholders
+  like `{name}`, `{ticket}` and `{balance}`
+- Emails are branded with the shop's name, and replies go to the shop's own email address
+- Opt-outs:
+  - Each customer has separate text and email opt-ins.
+  - Replying **STOP** to a text opts the customer out, and **START** opts them back in.
+  - Every email has an unsubscribe link (including one-click unsubscribe in Gmail and Apple Mail).
+- Customer text replies show up in the shop's Messages page
+- The message log shows every text and email with its result: sent, failed (with the reason), skipped or logged
+- "Send a test" buttons in Settings to confirm texts and emails really arrive
+
+**Shop operations**
+- Tickets with line items from an editable price list, discounts, sales tax,
+  deposits/payments, due dates, rack location and printable receipts
+- Order workflow: Received → Cleaning → Ready → Picked up / Cancelled
+- Customer profiles with preferences, notes, order history and lifetime value
+- Dashboard: in process, ready for pickup, due/overdue, sales today, unpaid balances
 
 ## Running it
 
@@ -37,34 +47,58 @@ cd dry-cleaner-crm
 npm start
 ```
 
-Then open http://localhost:3000. Data is stored in `data/crm.db` (SQLite).
-Back up that file to back up the business.
+Open http://localhost:3000 and click **Create an account**. Data is stored in
+`data/crm.db` (SQLite).
 
-## Sending real text messages
+Without a texting or email service connected, messages are **logged only**:
+they appear on the Messages page marked "logged" but aren't sent. That's
+handy for trying things out.
 
-Out of the box, messages are **logged only**: they appear in the Messages page
-but are not sent. To send real SMS through [Twilio](https://www.twilio.com),
-set these environment variables before starting:
+## Connecting texts (Twilio)
+
+1. Create a [Twilio](https://www.twilio.com) account and buy a phone number.
+   For US numbers, complete A2P 10DLC registration in the Twilio console.
+   US carriers block unregistered business texting.
+2. Set:
+   ```bash
+   TWILIO_ACCOUNT_SID=ACxxxxxxxx
+   TWILIO_AUTH_TOKEN=xxxxxxxx
+   TWILIO_FROM=+15551234567          # or TWILIO_MESSAGING_SERVICE_SID=MGxxxx
+   ```
+3. To receive STOP/START and customer replies, set the Twilio number's
+   "A message comes in" webhook to `https://YOUR-DOMAIN/webhooks/twilio/sms`
+   (HTTP POST) and set `PUBLIC_URL=https://YOUR-DOMAIN`. Requests are verified
+   with Twilio's signature.
+
+## Connecting email
+
+Pick one provider, verify your sending domain with them, and set:
 
 ```bash
-export TWILIO_ACCOUNT_SID=ACxxxxxxxx
-export TWILIO_AUTH_TOKEN=xxxxxxxx
-export TWILIO_FROM=+15551234567   # your Twilio number
-npm start
+EMAIL_PROVIDER=resend                 # resend | sendgrid | postmark
+EMAIL_API_KEY=xxxxxxxx
+EMAIL_FROM=notifications@yourdomain.com
+EMAIL_FROM_NAME="Dry Cleaner CRM"     # sender name for password-reset emails
+PUBLIC_URL=https://yourdomain.com     # needed for unsubscribe & reset links
 ```
 
-## Configuration
+Customer emails are sent from `EMAIL_FROM` with the shop's name as the sender
+name, and replies go to the shop's business email (set in Settings).
+
+## All configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | Web server port |
 | `DB_PATH` | `data/crm.db` | SQLite database file |
-| `APP_PASSWORD` | _(none)_ | If set, the browser asks for this password (any username) |
-| `REMINDER_CHECK_MINUTES` | `15` | How often to check for pickup reminders that are due |
-| `TWILIO_*` | _(none)_ | See above |
-
-Business name, tax rate, reminder timing and message wording are set in the
-**Settings** page.
+| `PUBLIC_URL` | _(none)_ | Public address, e.g. `https://crm.example.com`. Used in email links and Twilio verification. Starting with `https://` also makes cookies secure. |
+| `ALLOW_SIGNUP` | `1` | Set `0` to stop new shops signing up |
+| `TRUST_PROXY` | `0` | Set `1` behind a reverse proxy so rate limiting sees real client IPs |
+| `COOKIE_SECURE` | `0` | Force secure cookies if `PUBLIC_URL` isn't https |
+| `REMINDER_CHECK_MINUTES` | `15` | How often to look for reminders that are due |
+| `DEFAULT_COUNTRY_CODE` | `1` | Country code added to phone numbers typed without one |
+| `SECRET_KEY` | _(generated)_ | Signs unsubscribe links. Generated and stored on first run if unset. |
+| `TWILIO_*`, `EMAIL_*` | _(none)_ | See above |
 
 ## Development
 
@@ -72,25 +106,27 @@ Business name, tax rate, reminder timing and message wording are set in the
 npm test
 ```
 
-Project layout:
-
 ```
-server.js          HTTP server, static files, auth
-src/db.js          SQLite schema, default settings and price list
-src/orders.js      Order creation, totals, status changes, payments
+server.js          HTTP server: sessions, CSRF check, webhooks, unsubscribe page, static files
+src/db.js          SQLite schema, new-shop defaults (settings, price list)
+src/auth.js        Sign up, log in, sessions, password reset, team
+src/api.js         REST API routes with per-route access (public / user / owner)
+src/orders.js      Orders, totals, status changes, payments
+src/notify.js      Text and email composition, opt-outs, message log
+src/channels.js    Twilio, Resend, SendGrid, Postmark; phone formatting
 src/reminders.js   Pickup reminder rules and background scheduler
-src/notify.js      SMS sending (Twilio) and message templates
-src/api.js         REST API routes
-public/            Browser UI (plain HTML/CSS/JS)
-test/              API and reminder tests (node:test)
+public/            Browser UI (login page and app; plain HTML/CSS/JS)
+test/              API, isolation, notification and provider tests
 ```
+
+The database from the earlier single-shop version isn't compatible. If
+you have one, move `data/crm.db` aside before starting.
 
 ## Ideas for next steps
 
-- Email notifications and two-way SMS (customer replies)
-- Card payments (Stripe/Square) and end-of-day cash reports
-- Garment barcode/tag printing and scanning
-- Pickup and delivery routes
-- Loyalty points and coupons
-- Multiple staff logins and multiple store locations
-- Hosting in the cloud so several counters can share one database
+- Hosting (e.g. Fly.io or Render with a persistent disk) and a custom domain
+- Subscription billing per shop (Stripe)
+- Delivery-status updates from Twilio and email providers (delivered, bounced)
+- Two-way texting inbox with replies from the app
+- Card payments and end-of-day reports
+- Marketing messages (promotions to opted-in customers)

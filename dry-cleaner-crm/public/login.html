@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dry Cleaner CRM — Log in</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="auth-page">
+  <main class="auth">
+    <div class="auth-brand">Dry Cleaner CRM</div>
+    <p class="muted auth-tagline">Orders, customers and pickup reminders for your shop.</p>
+
+    <form class="panel" id="login" data-view>
+      <h1>Log in</h1>
+      <label class="field">Email<input name="email" type="email" autocomplete="email" required></label>
+      <label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <div class="error" role="alert"></div>
+      <button class="primary wide" type="submit">Log in</button>
+      <div class="auth-links"><a href="#forgot">Forgot password?</a><a href="#signup">Create an account</a></div>
+    </form>
+
+    <form class="panel" id="signup" data-view hidden>
+      <h1>Create your shop account</h1>
+      <label class="field">Business name<input name="shop_name" autocomplete="organization" required></label>
+      <label class="field">Your name<input name="name" autocomplete="name" required></label>
+      <label class="field">Email<input name="email" type="email" autocomplete="email" required></label>
+      <label class="field">Password<input name="password" type="password" autocomplete="new-password" minlength="8" required>
+        <span class="small muted">At least 8 characters</span></label>
+      <div class="error" role="alert"></div>
+      <button class="primary wide" type="submit">Create account</button>
+      <div class="auth-links"><span></span><a href="#login">I already have an account</a></div>
+    </form>
+
+    <form class="panel" id="forgot" data-view hidden>
+      <h1>Reset your password</h1>
+      <p class="muted small">Enter your email and we'll send you a link to set a new password.</p>
+      <label class="field">Email<input name="email" type="email" autocomplete="email" required></label>
+      <div class="error" role="alert"></div>
+      <div class="notice" hidden>If an account exists for that email, a reset link is on its way. Check your inbox.</div>
+      <button class="primary wide" type="submit">Send reset link</button>
+      <div class="auth-links"><span></span><a href="#login">Back to log in</a></div>
+    </form>
+
+    <form class="panel" id="reset" data-view hidden>
+      <h1>Choose a new password</h1>
+      <label class="field">New password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <div class="error" role="alert"></div>
+      <button class="primary wide" type="submit">Save password</button>
+    </form>
+  </main>
+  <script src="/login.js"></script>
+</body>
+</html>

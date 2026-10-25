@@ -1,3 +1,3 @@
 # Deven-Projects
 
-- [dry-cleaner-crm](dry-cleaner-crm/): order management and customer reminders for dry cleaners
+- [dry-cleaner-crm](dry-cleaner-crm/): multi-shop order management with text and email reminders for dry cleaners

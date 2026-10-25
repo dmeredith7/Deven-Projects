@@ -82,7 +82,8 @@ button:hover, .btn:hover { border-color: var(--muted); }
 .badge.ready { background: var(--ready); }
 .badge.picked_up { background: var(--picked_up); }
 .badge.cancelled { background: var(--cancelled); }
-.badge.sent, .badge.logged { background: var(--ready); }
+.badge.sent { background: var(--ready); }
+.badge.logged { background: var(--received); }
 .badge.failed { background: var(--danger); }
 .badge.skipped { background: var(--cancelled); }
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -104,6 +105,24 @@ button:hover, .btn:hover { border-color: var(--muted); }
 }
 .toast.show { opacity: 1; }
 .ticket { display: none; }
+[hidden] { display: none !important; }
+.user-menu { display: flex; align-items: center; gap: 8px; }
+.channel { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.inbound td { background: color-mix(in srgb, var(--primary) 7%, transparent); }
+.status-pill { display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: 13px; }
+.status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cancelled); }
+.status-pill.on .dot { background: var(--ready); }
+.auth-page main.auth { max-width: 420px; padding-top: 48px; }
+.auth-brand { font-size: 24px; font-weight: 700; text-align: center; }
+.auth-tagline { text-align: center; margin: 4px 0 20px; }
+.auth .panel { display: grid; gap: 12px; }
+.auth h1 { margin: 0; }
+.auth label.field input { color: var(--text); }
+.wide { width: 100%; padding: 10px; }
+.error { color: var(--danger); font-size: 14px; min-height: 0; }
+.error:empty { display: none; }
+.notice { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 14px; }
+.auth-links { display: flex; justify-content: space-between; font-size: 14px; }
 @media print {
   .no-print, .topbar, #app > *:not(.ticket) { display: none !important; }
   body { background: #fff; color: #000; }

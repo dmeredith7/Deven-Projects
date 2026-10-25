@@ -24,9 +24,16 @@ async function api(method, path, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    location.href = '/login.html';
+    throw new Error('Please log in');
+  }
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
 }
+
+let me = null;
+const isOwner = () => me && me.user.role === 'owner';
 
 let toastTimer;
 function toast(msg) {
@@ -37,11 +44,34 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
-function messageToast(m) {
-  if (!m) return;
-  if (m.status === 'sent') toast('Text message sent to customer');
-  else if (m.status === 'logged') toast('Message logged (SMS not configured)');
-  else toast(`Message ${m.status}: ${m.error || ''}`);
+const CHANNEL_LABEL = { sms: 'Text', email: 'Email' };
+function messageToast(list) {
+  list = [].concat(list || []);
+  if (!list.length) return;
+  toast(
+    list
+      .map((m) => {
+        const ch = CHANNEL_LABEL[m.channel] || m.channel;
+        if (m.status === 'sent') return `${ch} sent`;
+        if (m.status === 'logged') return `${ch} logged (not configured yet)`;
+        return `${ch} ${m.status}${m.error ? ': ' + m.error : ''}`;
+      })
+      .join(' · ')
+  );
+}
+
+function messageTable(list, { showCustomer = false } = {}) {
+  if (!list.length) return '<div class="empty">No messages yet</div>';
+  return `<div class="table-wrap"><table><tbody>${list
+    .map(
+      (m) => `<tr class="${m.direction === 'in' ? 'inbound' : ''}">
+      <td class="small muted">${dateTime(m.created_at)}</td>
+      <td><span class="channel">${m.direction === 'in' ? '↩ ' : ''}${esc(CHANNEL_LABEL[m.channel] || m.channel)}</span><div class="small muted">${esc(m.kind)}</div></td>
+      ${showCustomer ? `<td>${m.customer_id ? `<a href="#/customers/${m.customer_id}">${esc(m.customer_name)}</a>` : esc(m.to_addr)}${m.order_id ? `<div class="small"><a href="#/orders/${m.order_id}">#${esc(m.ticket)}</a></div>` : ''}</td>` : ''}
+      <td class="small">${m.subject ? `<strong>${esc(m.subject)}</strong><br>` : ''}${esc(m.body).replace(/\n/g, '<br>')}</td>
+      <td>${badge(m.status)}${m.error ? `<div class="small muted">${esc(m.error)}</div>` : ''}</td></tr>`
+    )
+    .join('')}</tbody></table></div>`;
 }
 
 function orderRows(list, { showCustomer = true } = {}) {
@@ -309,9 +339,10 @@ views.order = async ([id]) => {
     </div>
     <div class="panel">
       <div class="row"><h2>Messages</h2><span class="spacer"></span>
-        <button data-notify="ready">Send "ready" text</button>
+        <button data-notify="ready">Send "ready" notice</button>
         <button data-notify="reminder">Send pickup reminder</button></div>
-      ${o.messages.length ? `<table><tbody>${o.messages.map((m) => `<tr><td class="small muted">${dateTime(m.created_at)}</td><td>${esc(m.kind)}</td><td>${esc(m.body)}</td><td>${badge(m.status)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No messages yet</div>'}
+      <p class="small muted">Sent by text and/or email, depending on the customer's contact details and preferences.</p>
+      ${messageTable(o.messages)}
     </div>
     <div class="ticket">
       <h3>${esc(settings.business_name)}</h3>
@@ -330,8 +361,8 @@ views.order = async ([id]) => {
   const setStatus = async (status) => {
     try {
       const r = await api('POST', `/orders/${id}/status`, { status });
-      messageToast(r.message);
-      if (!r.message) toast(`Marked ${STATUS_LABEL[status]}`);
+      if (r.messages.length) messageToast(r.messages);
+      else toast(`Marked ${STATUS_LABEL[status]}`);
       route();
     } catch (e) { toast(e.message); }
   };
@@ -404,20 +435,26 @@ views.customer = async ([id]) => {
           <label>Preferences<input id="pref" value="${esc(c.preferences)}"></label>
           <label class="full">Notes<textarea id="notes">${esc(c.notes)}</textarea></label>
           <label class="check full"><input id="sms" type="checkbox" ${c.sms_opt_in ? 'checked' : ''}> Send text message notifications</label>
+          <label class="check full"><input id="emailopt" type="checkbox" ${c.email_opt_in ? 'checked' : ''}> Send email notifications</label>
         </div>
         <div class="row" style="margin-top:10px"><button id="del" class="danger">Delete</button><span class="spacer"></span><button id="save" class="primary">Save</button></div>
       </div>
       <div class="panel"><h2>Send a message</h2>
-        <textarea id="msg" placeholder="Type a text message to ${esc(c.name)}…"></textarea>
+        <div class="row" style="margin-bottom:8px">
+          <label class="check"><input type="checkbox" id="ch-sms" ${c.phone ? 'checked' : 'disabled'}> Text</label>
+          <label class="check"><input type="checkbox" id="ch-email" ${c.email ? (c.phone ? '' : 'checked') : 'disabled'}> Email</label>
+        </div>
+        <input id="subj" placeholder="Email subject" style="width:100%;margin-bottom:8px" ${c.email && !c.phone ? '' : 'hidden'}>
+        <textarea id="msg" placeholder="Type a message to ${esc(c.name)}…"></textarea>
         <div class="row" style="margin-top:8px"><span class="spacer"></span><button id="send">Send</button></div>
         <h2 style="margin-top:16px">Recent messages</h2>
-        ${c.messages.length ? `<table><tbody>${c.messages.map((m) => `<tr><td class="small muted">${dateTime(m.created_at)}</td><td class="small">${esc(m.body)}</td><td>${badge(m.status)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">None</div>'}
+        ${messageTable(c.messages)}
       </div>
     </div>
     <div class="panel"><h2>Order history</h2>${orderRows(c.orders, { showCustomer: false })}</div>`;
   $('#save').onclick = async () => {
     try {
-      await api('PUT', '/customers/' + id, { name: $('#name').value, phone: $('#phone').value, email: $('#email').value, preferences: $('#pref').value, notes: $('#notes').value, sms_opt_in: $('#sms').checked });
+      await api('PUT', '/customers/' + id, { name: $('#name').value, phone: $('#phone').value, email: $('#email').value, preferences: $('#pref').value, notes: $('#notes').value, sms_opt_in: $('#sms').checked, email_opt_in: $('#emailopt').checked });
       toast('Saved');
       route();
     } catch (e) { toast(e.message); }
@@ -426,8 +463,11 @@ views.customer = async ([id]) => {
     if (!confirm(`Delete ${c.name}?`)) return;
     try { await api('DELETE', '/customers/' + id); location.hash = '#/customers'; } catch (e) { toast(e.message); }
   };
+  $('#ch-email').onchange = () => ($('#subj').hidden = !$('#ch-email').checked);
   $('#send').onclick = async () => {
-    try { messageToast(await api('POST', `/customers/${id}/message`, { body: $('#msg').value })); route(); } catch (e) { toast(e.message); }
+    const channels = [$('#ch-sms').checked && 'sms', $('#ch-email').checked && 'email'].filter(Boolean);
+    if (!channels.length) return toast('Choose text and/or email');
+    try { messageToast(await api('POST', `/customers/${id}/message`, { body: $('#msg').value, subject: $('#subj').value, channels })); route(); } catch (e) { toast(e.message); }
   };
 };
 
@@ -454,51 +494,132 @@ views.services = async () => {
   $('#new-row .add').onclick = async () => { try { await api('POST', '/services', read($('#new-row'))); route(); } catch (e) { toast(e.message); } };
 };
 
+let messageFilter = '';
 views.messages = async () => {
-  const list = await api('GET', '/messages');
-  app.innerHTML = `<h1>Messages</h1><div class="panel">${
-    list.length
-      ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Customer</th><th>Order</th><th>Type</th><th>Message</th><th>Status</th></tr></thead><tbody>
-        ${list.map((m) => `<tr><td class="small muted">${dateTime(m.created_at)}</td><td><a href="#/customers/${m.customer_id}">${esc(m.customer_name)}</a></td>
-          <td>${m.order_id ? `<a href="#/orders/${m.order_id}">#${esc(m.ticket)}</a>` : ''}</td><td>${esc(m.kind)}</td><td class="small">${esc(m.body)}</td>
-          <td>${badge(m.status)}${m.error ? `<div class="small muted">${esc(m.error)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>`
-      : '<div class="empty">No messages sent yet</div>'
-  }</div>`;
+  const list = await api('GET', '/messages' + (messageFilter ? '?channel=' + messageFilter : ''));
+  app.innerHTML = `<div class="row"><h1>Messages</h1><span class="spacer"></span>
+    <div class="tabs">${[['', 'All'], ['sms', 'Texts'], ['email', 'Emails']].map(([k, l]) => `<button data-ch="${k}" class="${k === messageFilter ? 'active' : ''}">${l}</button>`).join('')}</div></div>
+    <p class="small muted">Every text and email sent to customers, plus their text replies (↩).</p>
+    <div class="panel">${messageTable(list, { showCustomer: true })}</div>`;
+  $$('[data-ch]').forEach((b) => (b.onclick = () => { messageFilter = b.dataset.ch; route(); }));
 };
 
+const PROVIDER_LABEL = { twilio: 'Twilio', resend: 'Resend', sendgrid: 'SendGrid', postmark: 'Postmark' };
 views.settings = async () => {
-  const s = await api('GET', '/settings');
+  const [s, team] = await Promise.all([api('GET', '/settings'), api('GET', '/team')]);
+  const owner = isOwner();
+  const ro = owner ? '' : 'disabled';
+  const pill = (mode, label) =>
+    `<span class="status-pill ${mode !== 'log' ? 'on' : ''}"><span class="dot"></span>${label}: ${mode !== 'log' ? 'connected (' + esc(PROVIDER_LABEL[mode] || mode) + ')' : 'not connected, messages are logged only'}</span>`;
+  const field = (name, label, attrs = '') => `<label>${label}<input name="${name}" value="${esc(s[name])}" ${attrs} ${ro}></label>`;
+  const area = (name, label, rows = 3) => `<label class="full">${label}<textarea name="${name}" rows="${rows}" ${ro}>${esc(s[name])}</textarea></label>`;
+  const check = (name, label) => `<label class="check full"><input name="${name}" type="checkbox" ${s[name] === '1' ? 'checked' : ''} ${ro}> ${label}</label>`;
+
   app.innerHTML = `
     <h1>Settings</h1>
+    ${owner ? '' : '<p class="muted">Only the shop owner can change these settings.</p>'}
     <div class="panel">
       <h2>Business</h2>
       <div class="form">
-        <label>Business name<input name="business_name" value="${esc(s.business_name)}"></label>
-        <label>Business phone<input name="business_phone" value="${esc(s.business_phone)}"></label>
-        <label>Sales tax rate (%)<input name="tax_rate" value="${esc(s.tax_rate)}" inputmode="decimal"></label>
-        <label>Default turnaround (days)<input name="default_turnaround_days" type="number" min="0" value="${esc(s.default_turnaround_days)}"></label>
+        ${field('business_name', 'Business name')}
+        ${field('business_phone', 'Business phone')}
+        ${field('business_email', 'Business email (customers\' email replies go here)', 'type="email"')}
+        ${field('business_address', 'Address')}
+        ${field('tax_rate', 'Sales tax rate (%)', 'inputmode="decimal"')}
+        ${field('default_turnaround_days', 'Default turnaround (days)', 'type="number" min="0"')}
       </div>
     </div>
     <div class="panel">
-      <h2>Notifications & reminders</h2>
-      <p class="small muted">SMS mode: <strong>${s.sms_mode === 'sms' ? 'Twilio (live texts)' : 'Log only — set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM to send real texts'}</strong></p>
+      <h2>Notifications</h2>
+      <div class="row" style="margin-bottom:12px">${pill(s.channels.sms, 'Texts')} ${pill(s.channels.email, 'Email')}</div>
       <div class="form">
-        <label class="check full"><input name="auto_notify_ready" type="checkbox" ${s.auto_notify_ready === '1' ? 'checked' : ''}> Automatically text the customer when an order is marked Ready</label>
-        <label>First pickup reminder after (days ready)<input name="reminder_after_days" type="number" min="0" value="${esc(s.reminder_after_days)}"></label>
-        <label>Repeat reminder every (days)<input name="reminder_interval_days" type="number" min="1" value="${esc(s.reminder_interval_days)}"></label>
-        <label>Maximum reminders per order (0 = off)<input name="max_reminders" type="number" min="0" value="${esc(s.max_reminders)}"></label>
-        <label class="full">"Order ready" message<textarea name="template_ready">${esc(s.template_ready)}</textarea></label>
-        <label class="full">Pickup reminder message<textarea name="template_reminder">${esc(s.template_reminder)}</textarea></label>
-        <div class="full small muted">Placeholders: {name} {ticket} {business} {phone} {total} {balance} {ready_date}</div>
+        ${check('notify_sms', 'Send text messages to customers who have a phone number')}
+        ${check('notify_email', 'Send emails to customers who have an email address')}
+        ${check('auto_notify_ready', 'Automatically notify the customer when an order is marked Ready')}
       </div>
-      <div class="row" style="margin-top:12px"><span class="spacer"></span><button id="save" class="primary">Save settings</button></div>
+      <h2 style="margin-top:18px">Pickup reminders</h2>
+      <div class="form">
+        ${field('reminder_after_days', 'First reminder after (days ready)', 'type="number" min="0"')}
+        ${field('reminder_interval_days', 'Repeat every (days)', 'type="number" min="1"')}
+        ${field('max_reminders', 'Max reminders per order (0 = off)', 'type="number" min="0"')}
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Message wording</h2>
+      <p class="small muted">Placeholders: {name} {full_name} {ticket} {business} {phone} {address} {total} {balance} {pieces} {due_date} {ready_date}.
+        Texts automatically end with "Reply STOP to opt out." Emails include an unsubscribe link.</p>
+      <div class="form">
+        ${area('sms_template_ready', 'Text: order ready', 2)}
+        ${area('sms_template_reminder', 'Text: pickup reminder', 2)}
+        ${field('email_subject_ready', 'Email subject: order ready')}
+        ${field('email_subject_reminder', 'Email subject: pickup reminder')}
+        ${area('email_body_ready', 'Email: order ready', 7)}
+        ${area('email_body_reminder', 'Email: pickup reminder', 7)}
+      </div>
+    </div>
+    ${owner ? `<div class="row" style="margin-bottom:16px"><span class="spacer"></span><button id="save" class="primary">Save settings</button></div>
+    <div class="panel">
+      <h2>Send a test</h2>
+      <p class="small muted">Check that messages really arrive. Try your own phone or email.</p>
+      <div class="row"><input id="test-phone" type="tel" placeholder="Phone number"><button data-test="sms">Send test text</button></div>
+      <div class="row" style="margin-top:8px"><input id="test-email" type="email" placeholder="Email address"><button data-test="email">Send test email</button></div>
+    </div>` : ''}
+    <div class="panel">
+      <h2>Team</h2>
+      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead><tbody>
+        ${team.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.role)}</td>
+          <td>${owner && u.id !== me.user.id ? `<button class="danger" data-remove="${u.id}">Remove</button>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>
+      ${owner ? `<h2 style="margin-top:16px">Add a team member</h2>
+      <div class="form">
+        <label>Name<input id="t-name"></label>
+        <label>Email<input id="t-email" type="email"></label>
+        <label>Temporary password<input id="t-pass" type="text" minlength="8"></label>
+        <label>Role<select id="t-role"><option value="staff">Staff (orders &amp; customers)</option><option value="owner">Owner (everything)</option></select></label>
+        <div><button id="t-add" class="primary">Add</button></div>
+      </div>` : ''}
+    </div>
+    <div class="panel">
+      <h2>Your password</h2>
+      <div class="form">
+        <label>Current password<input id="pw-cur" type="password" autocomplete="current-password"></label>
+        <label>New password<input id="pw-new" type="password" autocomplete="new-password" minlength="8"></label>
+        <div><button id="pw-save">Change password</button></div>
+      </div>
     </div>`;
-  $('#save').onclick = async () => {
-    const body = {};
-    $$('[name]', app).forEach((el) => (body[el.name] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value));
-    const saved = await api('PUT', '/settings', body);
-    $('#brand').textContent = saved.business_name;
-    toast('Settings saved');
+
+  if (owner) {
+    $('#save').onclick = async () => {
+      const body = {};
+      $$('[name]', app).forEach((el) => (body[el.name] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value));
+      try {
+        const saved = await api('PUT', '/settings', body);
+        $('#brand').textContent = saved.business_name;
+        toast('Settings saved');
+      } catch (e) { toast(e.message); }
+    };
+    $$('[data-test]').forEach((b) => (b.onclick = async () => {
+      const channel = b.dataset.test;
+      try { messageToast(await api('POST', '/settings/test-message', { channel, to: $(channel === 'sms' ? '#test-phone' : '#test-email').value })); } catch (e) { toast(e.message); }
+    }));
+    $('#t-add').onclick = async () => {
+      try {
+        await api('POST', '/team', { name: $('#t-name').value, email: $('#t-email').value, password: $('#t-pass').value, role: $('#t-role').value });
+        toast('Team member added. Share their email and temporary password with them.');
+        route();
+      } catch (e) { toast(e.message); }
+    };
+    $$('[data-remove]').forEach((b) => (b.onclick = async () => {
+      if (!confirm('Remove this team member? They will be logged out.')) return;
+      try { await api('DELETE', '/team/' + b.dataset.remove); route(); } catch (e) { toast(e.message); }
+    }));
+  }
+  $('#pw-save').onclick = async () => {
+    try {
+      await api('PUT', '/me/password', { current_password: $('#pw-cur').value, new_password: $('#pw-new').value });
+      toast('Password changed');
+      $('#pw-cur').value = $('#pw-new').value = '';
+    } catch (e) { toast(e.message); }
   };
 };
 
@@ -533,6 +654,18 @@ async function route() {
   location.hash = '#/dashboard';
 }
 
+$('#logout').onclick = async () => {
+  await api('POST', '/auth/logout').catch(() => {});
+  location.href = '/login.html';
+};
+
 window.addEventListener('hashchange', route);
-api('GET', '/settings').then((s) => { $('#brand').textContent = s.business_name; document.title = s.business_name + ' — CRM'; }).catch(() => {});
-route();
+api('GET', '/me')
+  .then((m) => {
+    me = m;
+    $('#brand').textContent = m.shop.name;
+    $('#who').textContent = m.user.name;
+    document.title = m.shop.name + ' — CRM';
+    route();
+  })
+  .catch(() => {});

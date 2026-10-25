@@ -25,23 +25,23 @@ function computeTotals(order, items) {
   };
 }
 
-function getOrder(db, id) {
+function getOrder(db, shopId, id) {
   const order = db
     .prepare(
       `SELECT o.*, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
               c.preferences AS customer_preferences
          FROM orders o JOIN customers c ON c.id = o.customer_id
-        WHERE o.id = ?`
+        WHERE o.id = ? AND o.shop_id = ?`
     )
-    .get(id);
+    .get(id, shopId);
   if (!order) return null;
   const items = db.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id').all(id);
   return { ...order, items, ...computeTotals(order, items) };
 }
 
-function listOrders(db, { status, q, customerId, limit = 200 } = {}) {
-  const where = [];
-  const params = [];
+function listOrders(db, shopId, { status, q, customerId, limit = 200 } = {}) {
+  const where = ['o.shop_id = ?'];
+  const params = [shopId];
   if (status === 'open') where.push("o.status IN ('received','cleaning','ready')");
   else if (status) {
     where.push('o.status = ?');
@@ -59,18 +59,19 @@ function listOrders(db, { status, q, customerId, limit = 200 } = {}) {
   const rows = db
     .prepare(
       `SELECT o.id FROM orders o JOIN customers c ON c.id = o.customer_id
-       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+       WHERE ${where.join(' AND ')}
        ORDER BY o.id DESC LIMIT ?`
     )
     .all(...params, Number(limit));
-  return rows.map((r) => getOrder(db, r.id));
+  return rows.map((r) => getOrder(db, shopId, r.id));
 }
 
-function normalizeItems(db, items) {
+function normalizeItems(db, shopId, items) {
   if (!Array.isArray(items) || items.length === 0) throw new HttpError(400, 'An order needs at least one item');
-  const svc = db.prepare('SELECT * FROM services WHERE id = ?');
+  const svc = db.prepare('SELECT * FROM services WHERE id = ? AND shop_id = ?');
   return items.map((it) => {
-    const service = it.service_id ? svc.get(Number(it.service_id)) : null;
+    const service = it.service_id ? svc.get(Number(it.service_id), shopId) : null;
+    if (it.service_id && !service) throw new HttpError(400, 'Unknown service');
     const description = (it.description || service?.name || '').trim();
     if (!description) throw new HttpError(400, 'Each item needs a description or service');
     const qty = Math.max(1, parseInt(it.qty ?? 1, 10) || 1);
@@ -94,20 +95,26 @@ function replaceItems(db, orderId, items) {
   for (const i of items) ins.run(orderId, i.service_id, i.description, i.qty, i.price_cents, i.notes);
 }
 
-function createOrder(db, body) {
-  const customer = db.prepare('SELECT id FROM customers WHERE id = ?').get(Number(body.customer_id));
+function createOrder(db, shopId, body) {
+  const customer = db
+    .prepare('SELECT id FROM customers WHERE id = ? AND shop_id = ?')
+    .get(Number(body.customer_id), shopId);
   if (!customer) throw new HttpError(400, 'Valid customer_id is required');
-  const items = normalizeItems(db, body.items);
-  const settings = getSettings(db);
+  const items = normalizeItems(db, shopId, body.items);
+  const settings = getSettings(db, shopId);
 
   db.exec('BEGIN');
   try {
+    const { next_ticket: ticket } = db.prepare('SELECT next_ticket FROM shops WHERE id = ?').get(shopId);
+    db.prepare('UPDATE shops SET next_ticket = next_ticket + 1 WHERE id = ?').run(shopId);
     const r = db
       .prepare(
-        `INSERT INTO orders (customer_id, rack, due_date, notes, discount_cents, tax_rate, paid_cents)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO orders (shop_id, ticket, customer_id, rack, due_date, notes, discount_cents, tax_rate, paid_cents)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
+        shopId,
+        String(ticket),
         customer.id,
         body.rack || null,
         body.due_date || addDays(Number(settings.default_turnaround_days) || 3),
@@ -117,23 +124,22 @@ function createOrder(db, body) {
         Math.max(0, Math.round(Number(body.paid_cents) || 0))
       );
     const id = Number(r.lastInsertRowid);
-    db.prepare('UPDATE orders SET ticket = ? WHERE id = ?').run(String(1000 + id), id);
     replaceItems(db, id, items);
     db.exec('COMMIT');
-    return getOrder(db, id);
+    return getOrder(db, shopId, id);
   } catch (e) {
     db.exec('ROLLBACK');
     throw e;
   }
 }
 
-function updateOrder(db, id, body) {
-  const existing = getOrder(db, id);
+function updateOrder(db, shopId, id, body) {
+  const existing = getOrder(db, shopId, id);
   if (!existing) throw new HttpError(404, 'Order not found');
   const fields = {};
   for (const k of ['rack', 'due_date', 'notes']) if (k in body) fields[k] = body[k] || null;
   if ('discount_cents' in body) fields.discount_cents = Math.max(0, Math.round(Number(body.discount_cents) || 0));
-  const items = 'items' in body ? normalizeItems(db, body.items) : null;
+  const items = 'items' in body ? normalizeItems(db, shopId, body.items) : null;
 
   db.exec('BEGIN');
   try {
@@ -150,14 +156,14 @@ function updateOrder(db, id, body) {
     db.exec('ROLLBACK');
     throw e;
   }
-  return getOrder(db, id);
+  return getOrder(db, shopId, id);
 }
 
-async function setStatus(db, notifier, id, status) {
+async function setStatus(db, notifier, shopId, id, status) {
   if (!STATUSES.includes(status)) throw new HttpError(400, `Status must be one of: ${STATUSES.join(', ')}`);
-  const order = getOrder(db, id);
+  const order = getOrder(db, shopId, id);
   if (!order) throw new HttpError(404, 'Order not found');
-  if (order.status === status) return { order, message: null };
+  if (order.status === status) return { order, messages: [] };
 
   const now = "datetime('now')";
   const extra =
@@ -170,21 +176,21 @@ async function setStatus(db, notifier, id, status) {
           : '';
   db.prepare(`UPDATE orders SET status = ?${extra} WHERE id = ?`).run(status, id);
 
-  const updated = getOrder(db, id);
-  let message = null;
-  if (status === 'ready' && getSettings(db).auto_notify_ready === '1') {
-    message = await notifier.notifyOrder(updated, 'ready');
+  const updated = getOrder(db, shopId, id);
+  let messages = [];
+  if (status === 'ready' && getSettings(db, shopId).auto_notify_ready === '1') {
+    messages = await notifier.notifyOrder(updated, 'ready');
   }
-  return { order: updated, message };
+  return { order: updated, messages };
 }
 
-function addPayment(db, id, amountCents) {
-  const order = getOrder(db, id);
+function addPayment(db, shopId, id, amountCents) {
+  const order = getOrder(db, shopId, id);
   if (!order) throw new HttpError(404, 'Order not found');
   const amt = Math.round(Number(amountCents));
   if (!Number.isFinite(amt) || amt === 0) throw new HttpError(400, 'amount_cents must be a non-zero number');
   db.prepare('UPDATE orders SET paid_cents = MAX(0, paid_cents + ?) WHERE id = ?').run(amt, id);
-  return getOrder(db, id);
+  return getOrder(db, shopId, id);
 }
 
 module.exports = {
