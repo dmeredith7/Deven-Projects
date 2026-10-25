@@ -32,6 +32,11 @@ It needs **no dependencies**: just Node.js.
 - "Send a test" buttons in Settings to confirm texts and emails really arrive
 
 **Shop operations**
+- Works with the shop's own pre-numbered paper tickets: staff type the
+  ticket number when writing up an order (chosen at sign-up, changeable in
+  Settings → Business). Numbers only need to be unique among unfinished
+  orders, since ticket books repeat. Or let the app number orders automatically.
+- Search or type a ticket number on the dashboard to jump straight to the order
 - Tickets with line items from an editable price list, discounts, sales tax,
   deposits/payments, due dates, rack location and printable receipts
 - Order workflow: Received → Cleaning → Ready → Picked up / Cancelled

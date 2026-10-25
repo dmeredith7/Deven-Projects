@@ -98,7 +98,7 @@ function createAuth(db, notifier, { publicUrl = process.env.PUBLIC_URL || '' } =
     if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
   }
 
-  function signup({ shop_name, name, email, password }) {
+  function signup({ shop_name, name, email, password, ticket_mode }) {
     const shopName = String(shop_name || '').trim();
     const userName = String(name || '').trim();
     if (!shopName) throw new HttpError(400, 'Business name is required');
@@ -110,7 +110,7 @@ function createAuth(db, notifier, { publicUrl = process.env.PUBLIC_URL || '' } =
     }
     db.exec('BEGIN');
     try {
-      const shopId = createShop(db, shopName);
+      const shopId = createShop(db, shopName, { ticket_mode: ticket_mode === 'manual' ? 'manual' : 'auto' });
       const r = db
         .prepare("INSERT INTO users (shop_id, name, email, password_hash, role) VALUES (?, ?, ?, ?, 'owner')")
         .run(shopId, userName, e, hashPassword(password));

@@ -275,6 +275,9 @@ function createApi(db, notifier, auth) {
     if ('business_email' in body && body.business_email && !isEmail(body.business_email)) {
       throw new HttpError(400, 'Business email looks invalid');
     }
+    if ('ticket_mode' in body && !['auto', 'manual'].includes(body.ticket_mode)) {
+      throw new HttpError(400, 'ticket_mode must be "auto" or "manual"');
+    }
     for (const k of Object.keys(DEFAULT_SETTINGS)) if (k in body) up.run(user.shop_id, k, String(body[k] ?? ''));
     if (body.business_name) db.prepare('UPDATE shops SET name = ? WHERE id = ?').run(String(body.business_name), user.shop_id);
     return settingsView(user.shop_id);

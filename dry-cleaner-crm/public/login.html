@@ -17,9 +17,10 @@
         <div class="brand-name">Dry Cleaner CRM</div>
       </div>
       <div>
-        <h2>Run your front counter without the paper tickets.</h2>
+        <h2>Keep your tickets. Lose the “is it ready yet?” calls.</h2>
         <ul>
-          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Write up tickets in seconds from your price list</li>
+          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Works with the paper tickets you already use</li>
+          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Write up orders in seconds from your price list</li>
           <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Customers get a text or email the moment it's ready</li>
           <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Automatic reminders for clothes left on the rack</li>
           <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Every customer's history and preferences in one place</li>
@@ -45,6 +46,11 @@
         <label class="field">Email<input name="email" type="email" autocomplete="email" required></label>
         <label class="field">Password<input name="password" type="password" autocomplete="new-password" minlength="8" required>
           <span class="help">At least 8 characters</span></label>
+        <fieldset class="choice">
+          <legend>How do you number tickets?</legend>
+          <label class="check"><input type="radio" name="ticket_mode" value="manual" checked><span>I use pre-numbered paper tickets<small>Type the number from the ticket when you write up an order</small></span></label>
+          <label class="check"><input type="radio" name="ticket_mode" value="auto"><span>Number them for me<small>Orders are numbered automatically, starting at 1001</small></span></label>
+        </fieldset>
         <div class="error" role="alert"></div>
         <button class="btn btn-primary btn-lg btn-block" type="submit">Create account</button>
         <div class="auth-links"><span class="muted">Already have an account?</span><a href="#login">Log in</a></div>

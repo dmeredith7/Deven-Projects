@@ -57,6 +57,8 @@ function seedDemo(db, log = console.log) {
   setStatus(make(priya, [{ service_id: svc['Dress'], qty: 2 }, { service_id: svc['Hem Pants'], qty: 1 }], { rack: 'B-03', paid_cents: 1000 }), 'ready', 5);
   setStatus(make(tom, [{ service_id: svc['Coat / Overcoat'], qty: 1 }], { rack: 'C-07' }), 'ready', 0);
   setStatus(make(maria, [{ service_id: svc['Comforter'], qty: 1 }], { paid_cents: 3789 }), 'picked_up', 10);
+  // Most shops use pre-numbered paper tickets; show that mode in the demo.
+  set.run('manual', shopId, 'ticket_mode');
 
   log('Demo shop created.');
   log(`  Owner login: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);

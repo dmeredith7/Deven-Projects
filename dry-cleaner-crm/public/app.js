@@ -15,6 +15,7 @@ const parseUtc = (s) => new Date(String(s).replace(' ', 'T') + 'Z');
 const dateTime = (s) => (s ? parseUtc(s).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 const shortDate = (s) => (s ? parseUtc(s).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const cleanTicket = (v) => String(v || '').trim().replace(/^#/, '').replace(/\s+/g, '').toUpperCase();
 
 function dueLabel(d) {
   if (!d) return '';
@@ -263,9 +264,15 @@ views.dashboard = async () => {
     </div>
     <p class="small muted" style="margin-top:16px">${plural(d.orders_today, 'order')} today · ${money(d.outstanding_balance_cents)} in unpaid balances · ${plural(d.customers, 'customer')}</p>`;
 
-  $('#quick').onsubmit = (e) => {
+  $('#quick').onsubmit = async (e) => {
     e.preventDefault();
     const q = $('#quick-q').value.trim();
+    if (q) {
+      // Typed or scanned a ticket number? Open that order directly (active orders first).
+      const matches = (await api('GET', '/orders?q=' + encodeURIComponent(q))).filter((o) => o.ticket === cleanTicket(q));
+      const hit = matches.find((o) => NEXT[o.status]) || (matches.length === 1 && matches[0]);
+      if (hit) return (location.hash = '#/orders/' + hit.id);
+    }
     location.hash = `#/orders?status=${q ? '' : 'open'}${q ? '&q=' + encodeURIComponent(q) : ''}`;
   };
   if ($('#run-rem')) {
@@ -331,6 +338,7 @@ views.newOrder = async (_, query) => {
   const active = services.filter((s) => s.active);
   const categories = [...new Set(active.map((s) => s.category))];
   const taxRate = Number(settings.tax_rate) || 0;
+  const paperTickets = settings.ticket_mode === 'manual';
   const due = localDate(new Date(Date.now() + (Number(settings.default_turnaround_days) || 3) * 864e5));
   let customer = null;
   let cart = [];
@@ -361,6 +369,8 @@ views.newOrder = async (_, query) => {
       <div class="card cart" id="cart-card">
         <div class="card-head">${icon('receipt')}<h2>Ticket</h2><span class="spacer"></span><span class="hint" id="pcs"></span></div>
         <div class="card-body stack">
+          ${paperTickets ? `<label class="field">Ticket number<input id="ticket" class="ticket-input" placeholder="From the paper ticket" autocomplete="off" maxlength="21">
+            <span class="warn" id="ticket-warn" hidden></span></label>` : ''}
           <div class="cart-items" id="cart"></div>
           <div class="form" style="grid-template-columns:1fr 1fr">
             <label class="field">Due date<input id="due" type="date" value="${due}"></label>
@@ -419,6 +429,7 @@ views.newOrder = async (_, query) => {
     customer = c;
     renderCustomer();
     update();
+    if (paperTickets && !$('#ticket').value) $('#ticket').focus();
   };
   const newCustomer = (prefill) => {
     const looksLikePhone = /^[\d\s()+-]{7,}$/.test(prefill);
@@ -498,8 +509,9 @@ views.newOrder = async (_, query) => {
     $('#cart-bar').hidden = !cart.length;
     $('#bar-total').textContent = money(total);
     $('#bar-pcs').textContent = plural(cart.reduce((a, l) => a + l.qty, 0), 'piece');
-    $('#save').disabled = !customer || !cart.length;
-    $('#save').title = !customer ? 'Choose a customer first' : !cart.length ? 'Add at least one item' : '';
+    const needTicket = paperTickets && !cleanTicket($('#ticket').value);
+    $('#save').disabled = !customer || !cart.length || needTicket;
+    $('#save').title = !customer ? 'Choose a customer first' : !cart.length ? 'Add at least one item' : needTicket ? 'Enter the ticket number' : '';
   };
   const update = () => { renderTiles(); renderCart(); renderTotals(); };
 
@@ -512,10 +524,22 @@ views.newOrder = async (_, query) => {
     update();
   };
   ['#discount', '#paid'].forEach((s) => ($(s).oninput = renderTotals));
+  if (paperTickets) {
+    $('#ticket').oninput = () => { $('#ticket-warn').hidden = true; renderTotals(); };
+    // Warn early if this number is still on an unfinished order (ticket books repeat).
+    $('#ticket').onchange = async () => {
+      const t = cleanTicket($('#ticket').value);
+      if (!t) return;
+      const clash = (await api('GET', '/orders?status=open&q=' + encodeURIComponent(t))).find((o) => o.ticket === t);
+      $('#ticket-warn').hidden = !clash;
+      if (clash) $('#ticket-warn').textContent = `#${t} is already on an active order for ${clash.customer_name}.`;
+    };
+  }
   $('#bar-go').onclick = () => $('#cart-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('#save').onclick = (e) => busy(e.currentTarget, async () => {
     const o = await api('POST', '/orders', {
       customer_id: customer.id,
+      ...(paperTickets ? { ticket: $('#ticket').value } : {}),
       items: cart.map((l) => ({
         service_id: l.service_id,
         description: l.note.trim() ? `${l.name} — ${l.note.trim()}` : l.name,
@@ -601,6 +625,7 @@ views.order = async ([id]) => {
         <div class="card">
           <div class="card-head">${icon('edit')}<h2>Details</h2></div>
           <div class="card-body stack">
+            <label class="field">Ticket number<input id="ticket" value="${esc(o.ticket)}" maxlength="21"></label>
             <label class="field">Due date<input id="due" type="date" value="${esc(o.due_date)}"></label>
             <label class="field">Rack / bin<input id="rack" value="${esc(o.rack)}" placeholder="e.g. A-12"></label>
             <label class="field">Notes<textarea id="notes" placeholder="Stains, damage, special instructions">${esc(o.notes)}</textarea></label>
@@ -641,8 +666,12 @@ views.order = async ([id]) => {
     route();
   });
   $('#save-details').onclick = (e) => busy(e.currentTarget, async () => {
-    await api('PUT', '/orders/' + id, { due_date: $('#due').value, rack: $('#rack').value, notes: $('#notes').value });
+    const body = { due_date: $('#due').value, rack: $('#rack').value, notes: $('#notes').value };
+    const ticketChanged = cleanTicket($('#ticket').value) !== o.ticket;
+    if (ticketChanged) body.ticket = $('#ticket').value;
+    await api('PUT', '/orders/' + id, body);
     toast('Details saved');
+    if (ticketChanged) route();
   });
   if ($('#pay')) {
     $('#pay').onclick = (e) => busy(e.currentTarget, async () => {
@@ -921,6 +950,10 @@ views.settings = async (_, query) => {
         ${field('business_address', 'Address')}
         ${field('tax_rate', 'Sales tax (%)', 'inputmode="decimal"')}
         ${field('default_turnaround_days', 'Usual turnaround (days)', 'type="number" min="0"', 'Sets the default due date on new orders')}
+        <label class="field">Ticket numbers<select name="ticket_mode" ${ro}>
+          <option value="manual" ${s.ticket_mode === 'manual' ? 'selected' : ''}>Use my paper ticket numbers</option>
+          <option value="auto" ${s.ticket_mode !== 'manual' ? 'selected' : ''}>Number orders automatically</option></select>
+          <span class="help">With paper tickets, staff type the number when writing up an order</span></label>
       </div>${saveBar}</div>`,
     notifications: `<div class="stack">
       <div class="card"><div class="card-head"><h2>Connections</h2></div><div class="card-body stack sm">

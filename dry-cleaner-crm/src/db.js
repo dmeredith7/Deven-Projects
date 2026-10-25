@@ -80,8 +80,7 @@ CREATE TABLE IF NOT EXISTS orders (
   ready_at         TEXT,
   picked_up_at     TEXT,
   last_reminder_at TEXT,
-  reminder_count   INTEGER NOT NULL DEFAULT 0,
-  UNIQUE (shop_id, ticket)
+  reminder_count   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS order_items (
@@ -124,6 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_services_shop ON services(shop_id);
 CREATE INDEX IF NOT EXISTS idx_orders_shop_status ON orders(shop_id, status);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_ticket ON orders(shop_id, ticket);
 CREATE INDEX IF NOT EXISTS idx_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_messages_shop ON messages(shop_id, id);
 CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_addr, id);
@@ -136,6 +136,7 @@ const DEFAULT_SETTINGS = {
   business_address: '',
   tax_rate: '0',
   default_turnaround_days: '3',
+  ticket_mode: 'auto', // auto | manual (shop types the number from its paper tickets)
   notify_sms: '1',
   notify_email: '1',
   auto_notify_ready: '1',
@@ -178,8 +179,33 @@ function open(dbPath) {
       `${dbPath} was created by the single-shop version. Move it aside (or delete it) and restart to create a new multi-shop database.`
     );
   }
+  dropTicketUniqueness(db);
   db.exec(SCHEMA);
   return db;
+}
+
+// Early databases made ticket numbers unique per shop forever. Paper ticket
+// books repeat, so uniqueness is now only enforced among unfinished orders
+// (in orders.js). SQLite can't drop a table constraint, so rebuild the table.
+function dropTicketUniqueness(db) {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'orders'").get();
+  const unique = /,\s*UNIQUE\s*\(\s*shop_id\s*,\s*ticket\s*\)/i;
+  if (!row || !unique.test(row.sql)) return;
+  // Foreign keys must be off, or dropping the old table would cascade-delete order items.
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('BEGIN');
+  try {
+    db.exec(row.sql.replace(unique, '').replace(/CREATE TABLE\s+"?orders"?/i, 'CREATE TABLE orders_new'));
+    db.exec('INSERT INTO orders_new SELECT * FROM orders');
+    db.exec('DROP TABLE orders');
+    db.exec('ALTER TABLE orders_new RENAME TO orders');
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
 }
 
 // A per-install secret used to sign unsubscribe links. Generated once.
@@ -191,11 +217,11 @@ function secret(db) {
   return value;
 }
 
-function createShop(db, name) {
+function createShop(db, name, overrides = {}) {
   const r = db.prepare('INSERT INTO shops (name) VALUES (?)').run(name);
   const shopId = Number(r.lastInsertRowid);
   const insSetting = db.prepare('INSERT INTO settings (shop_id, key, value) VALUES (?, ?, ?)');
-  for (const [k, v] of Object.entries({ ...DEFAULT_SETTINGS, business_name: name })) insSetting.run(shopId, k, v);
+  for (const [k, v] of Object.entries({ ...DEFAULT_SETTINGS, ...overrides, business_name: name })) insSetting.run(shopId, k, v);
   const ins = db.prepare('INSERT INTO services (shop_id, name, category, price_cents) VALUES (?, ?, ?, ?)');
   for (const s of DEFAULT_SERVICES) ins.run(shopId, ...s);
   return shopId;

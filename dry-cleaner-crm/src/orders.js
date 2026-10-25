@@ -3,6 +3,7 @@
 const { getSettings } = require('./db');
 
 const STATUSES = ['received', 'cleaning', 'ready', 'picked_up', 'cancelled'];
+const OPEN_STATUSES = ['received', 'cleaning', 'ready'];
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -95,6 +96,40 @@ function replaceItems(db, orderId, items) {
   for (const i of items) ins.run(orderId, i.service_id, i.description, i.qty, i.price_cents, i.notes);
 }
 
+// Accepts what staff type from a paper ticket: "#a 1042" -> "A1042".
+function cleanTicket(raw) {
+  const t = String(raw ?? '').trim().replace(/^#/, '').replace(/\s+/g, '').toUpperCase();
+  if (!t) throw new HttpError(400, 'Enter the number from the paper ticket');
+  if (!/^[A-Z0-9][A-Z0-9-]{0,19}$/.test(t)) {
+    throw new HttpError(400, 'Ticket numbers can use letters, numbers and dashes (up to 20 characters)');
+  }
+  return t;
+}
+
+// Paper ticket books repeat, so a number only has to be unique among unfinished orders.
+function ticketClash(db, shopId, ticket, exceptId = 0) {
+  return db
+    .prepare(
+      `SELECT o.id, c.name FROM orders o JOIN customers c ON c.id = o.customer_id
+        WHERE o.shop_id = ? AND o.ticket = ? AND o.id != ?
+          AND o.status IN ('received','cleaning','ready') LIMIT 1`
+    )
+    .get(shopId, ticket, exceptId);
+}
+
+function assertTicketFree(db, shopId, ticket, exceptId = 0) {
+  const clash = ticketClash(db, shopId, ticket, exceptId);
+  if (clash) throw new HttpError(409, `Ticket #${ticket} is already on an active order for ${clash.name}`);
+}
+
+function nextAutoTicket(db, shopId) {
+  let { next_ticket: n } = db.prepare('SELECT next_ticket FROM shops WHERE id = ?').get(shopId);
+  // Skip numbers a shop entered by hand that are still in use.
+  while (ticketClash(db, shopId, String(n))) n++;
+  db.prepare('UPDATE shops SET next_ticket = ? WHERE id = ?').run(n + 1, shopId);
+  return String(n);
+}
+
 function createOrder(db, shopId, body) {
   const customer = db
     .prepare('SELECT id FROM customers WHERE id = ? AND shop_id = ?')
@@ -102,11 +137,16 @@ function createOrder(db, shopId, body) {
   if (!customer) throw new HttpError(400, 'Valid customer_id is required');
   const items = normalizeItems(db, shopId, body.items);
   const settings = getSettings(db, shopId);
+  const typed = String(body.ticket ?? '').trim();
+  let ticket = null;
+  if (typed || settings.ticket_mode === 'manual') {
+    ticket = cleanTicket(typed);
+    assertTicketFree(db, shopId, ticket);
+  }
 
   db.exec('BEGIN');
   try {
-    const { next_ticket: ticket } = db.prepare('SELECT next_ticket FROM shops WHERE id = ?').get(shopId);
-    db.prepare('UPDATE shops SET next_ticket = next_ticket + 1 WHERE id = ?').run(shopId);
+    if (!ticket) ticket = nextAutoTicket(db, shopId);
     const r = db
       .prepare(
         `INSERT INTO orders (shop_id, ticket, customer_id, rack, due_date, notes, discount_cents, tax_rate, paid_cents)
@@ -114,7 +154,7 @@ function createOrder(db, shopId, body) {
       )
       .run(
         shopId,
-        String(ticket),
+        ticket,
         customer.id,
         body.rack || null,
         body.due_date || addDays(Number(settings.default_turnaround_days) || 3),
@@ -139,6 +179,10 @@ function updateOrder(db, shopId, id, body) {
   const fields = {};
   for (const k of ['rack', 'due_date', 'notes']) if (k in body) fields[k] = body[k] || null;
   if ('discount_cents' in body) fields.discount_cents = Math.max(0, Math.round(Number(body.discount_cents) || 0));
+  if ('ticket' in body) {
+    fields.ticket = cleanTicket(body.ticket);
+    if (OPEN_STATUSES.includes(existing.status)) assertTicketFree(db, shopId, fields.ticket, id);
+  }
   const items = 'items' in body ? normalizeItems(db, shopId, body.items) : null;
 
   db.exec('BEGIN');
@@ -164,6 +208,10 @@ async function setStatus(db, notifier, shopId, id, status) {
   const order = getOrder(db, shopId, id);
   if (!order) throw new HttpError(404, 'Order not found');
   if (order.status === status) return { order, messages: [] };
+  // Reopening a finished order: its paper ticket number may have been reused since.
+  if (OPEN_STATUSES.includes(status) && !OPEN_STATUSES.includes(order.status)) {
+    assertTicketFree(db, shopId, order.ticket, id);
+  }
 
   const now = "datetime('now')";
   const extra =
