@@ -1,0 +1,13 @@
+{
+  "name": "dry-cleaner-crm",
+  "version": "0.1.0",
+  "description": "Order management and customer reminders for dry cleaners",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  },
+  "license": "MIT"
+}
