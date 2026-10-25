@@ -96,7 +96,8 @@ function createServer({
   dbPath = ':memory:',
   db,
   transports = transportsFromEnv(),
-  publicUrl = process.env.PUBLIC_URL || '',
+  // Render sets RENDER_EXTERNAL_URL automatically (https://<name>.onrender.com).
+  publicUrl = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '',
   env = process.env,
 } = {}) {
   db = db || db_.open(dbPath);
@@ -160,6 +161,10 @@ function createServer({
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     try {
+      if (url.pathname === '/healthz') {
+        db.prepare('SELECT 1').get();
+        return send(res, 200, { ok: true });
+      }
       if (url.pathname === '/webhooks/twilio/sms' && req.method === 'POST') return await twilioWebhook(req, res, url);
       if (url.pathname === '/unsubscribe') return await unsubscribe(req, res, url);
       if (!url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
@@ -206,6 +211,7 @@ if (require.main === module) {
   const port = Number(process.env.PORT) || 3000;
   const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'crm.db');
   const { server, db, notifier } = createServer({ dbPath });
+  if (process.env.SEED_DEMO === '1') require('./scripts/seed-demo').seedDemo(db);
   startScheduler(db, notifier, {
     intervalMs: (Number(process.env.REMINDER_CHECK_MINUTES) || 15) * 60 * 1000,
   });
@@ -214,6 +220,6 @@ if (require.main === module) {
     console.log(`Database: ${dbPath}`);
     console.log(`Texts:  ${notifier.modes.sms === 'log' ? 'not configured, logged only (set TWILIO_* to send)' : notifier.modes.sms}`);
     console.log(`Emails: ${notifier.modes.email === 'log' ? 'not configured, logged only (set EMAIL_* to send)' : notifier.modes.email}`);
-    if (!process.env.PUBLIC_URL) console.log('Tip: set PUBLIC_URL so emails include unsubscribe links and Twilio replies can be verified.');
+    if (!process.env.PUBLIC_URL && !process.env.RENDER_EXTERNAL_URL) console.log('Tip: set PUBLIC_URL so emails include unsubscribe links and Twilio replies can be verified.');
   });
 }

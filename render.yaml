@@ -1,0 +1,27 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# In Render: New > Blueprint, pick this repository, then click Apply.
+services:
+  - type: web
+    name: dry-cleaner-crm
+    runtime: node
+    rootDir: dry-cleaner-crm
+    plan: starter            # a paid plan is required for the persistent disk
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DB_PATH
+        value: /var/data/crm.db
+      - key: TRUST_PROXY
+        value: "1"
+      # Creates the demo shop (demo@example.com / demo1234) on startup.
+      # Set to 0 once real shops are using the site, then delete the demo shop.
+      - key: SEED_DEMO
+        value: "1"
