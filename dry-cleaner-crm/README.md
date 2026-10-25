@@ -47,7 +47,16 @@ cd dry-cleaner-crm
 npm start
 ```
 
-Open http://localhost:3000 and click **Create an account**. Data is stored in
+Open http://localhost:3000 and click **Create an account**.
+
+To try it with sample data instead, run `npm run demo` and log in with:
+
+| Login | Email | Password |
+|---|---|---|
+| Owner | `demo@example.com` | `demo1234` |
+| Staff | `staff@example.com` | `demo1234` |
+
+Remove the demo shop before going live. Anyone who knows these logins can use it. Data is stored in
 `data/crm.db` (SQLite).
 
 Without a texting or email service connected, messages are **logged only**:
