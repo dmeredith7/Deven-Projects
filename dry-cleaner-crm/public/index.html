@@ -4,24 +4,47 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dry Cleaner CRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header class="topbar no-print">
-    <div class="brand" id="brand">Dry Cleaner CRM</div>
-    <nav>
-      <a href="#/dashboard" data-nav="dashboard">Dashboard</a>
-      <a href="#/orders" data-nav="orders">Orders</a>
-      <a href="#/customers" data-nav="customers">Customers</a>
-      <a href="#/services" data-nav="services">Price List</a>
-      <a href="#/messages" data-nav="messages">Messages</a>
-      <a href="#/settings" data-nav="settings">Settings</a>
-    </nav>
-    <a class="btn primary" href="#/orders/new">+ New Order</a>
-    <div class="user-menu"><span id="who" class="muted small"></span><button id="logout">Log out</button></div>
-  </header>
-  <main id="app"></main>
-  <div id="toast" class="toast no-print"></div>
+  <div class="shell" id="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" data-icon="hanger"></div>
+        <div style="min-width:0">
+          <div class="brand-name" id="brand">Dry Cleaner CRM</div>
+          <div class="brand-sub">Front counter</div>
+        </div>
+      </div>
+      <a class="btn btn-primary new-order" href="#/orders/new"><span data-icon="plus"></span>New order</a>
+      <nav class="nav">
+        <a href="#/dashboard" data-nav="dashboard"><span data-icon="home"></span>Dashboard</a>
+        <a href="#/orders" data-nav="orders"><span data-icon="receipt"></span>Orders</a>
+        <a href="#/customers" data-nav="customers"><span data-icon="users"></span>Customers</a>
+        <a href="#/messages" data-nav="messages"><span data-icon="message"></span>Messages</a>
+        <a href="#/services" data-nav="services"><span data-icon="tag"></span>Price list</a>
+        <a href="#/settings" data-nav="settings"><span data-icon="settings"></span>Settings</a>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="avatar" id="me-avatar"></div>
+        <div class="who"><div id="who"></div><span id="role"></span></div>
+        <button class="icon-btn" id="logout" title="Log out" aria-label="Log out"><span data-icon="logout"></span></button>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+    <div class="content">
+      <header class="topbar">
+        <button class="icon-btn" id="menu" aria-label="Open menu"><span data-icon="menu"></span></button>
+        <div class="title" id="topbar-title">Dry Cleaner CRM</div>
+        <a class="btn btn-primary btn-sm" href="#/orders/new"><span data-icon="plus"></span>New</a>
+      </header>
+      <main id="app"><div class="loading">Loading…</div></main>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="/app.js"></script>
 </body>
 </html>
