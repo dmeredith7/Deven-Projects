@@ -129,11 +129,13 @@
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   label.field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
-  select, input[type="number"] {
+  select, input.count-input {
     background: rgba(0,0,0,0.35); color: var(--text); border: 1px solid var(--felt-line);
     border-radius: 8px; padding: 8px 10px; font-size: 1rem;
   }
-  input[type="number"] { width: 110px; text-align: center; font-size: 1.3rem; }
+  input.count-input { width: 96px; text-align: center; font-size: 1.3rem; }
+  .count-wrap { display: flex; gap: 6px; align-items: stretch; }
+  .count-wrap .sign { min-width: 52px; padding: 0 12px; font-size: 1.3rem; font-weight: 700; }
   .settings { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin: 10px 0 4px; }
 
   .stats { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 10px 0; }
@@ -296,7 +298,7 @@
     <div class="row" id="r-start-row"><button class="btn primary" id="r-start">Deal</button></div>
     <div class="row" id="r-answer-row" hidden>
       <label class="field" style="align-items:center">Running count
-        <input type="number" id="r-input" step="1" inputmode="numeric">
+        <span class="count-wrap"><button type="button" class="btn sign" data-sign="r-input" aria-label="Switch between positive and negative">±</button><input type="text" class="count-input" id="r-input" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="0"></span>
       </label>
       <button class="btn primary" id="r-submit">Check</button>
     </div>
@@ -326,7 +328,7 @@
     </div>
     <div class="row">
       <label class="field" style="align-items:center">True count
-        <input type="number" id="t-input" step="1" inputmode="numeric">
+        <span class="count-wrap"><button type="button" class="btn sign" data-sign="t-input" aria-label="Switch between positive and negative">±</button><input type="text" class="count-input" id="t-input" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="0"></span>
       </label>
       <button class="btn primary" id="t-submit">Check</button>
       <button class="btn" id="t-next" hidden>Next →</button>
@@ -363,6 +365,24 @@
     el.setAttribute('aria-label', `${card.rank} of ${card.suit.s}`);
     return el;
   }
+
+  // Count inputs: phone number pads have no minus key, so each input gets a ± button
+  // and accepts a typed "-" / "−" too.
+  function parseCount(raw) {
+    const t = raw.replace(/[−–]/g, '-').replace(/\s/g, '');
+    return /^[-+]?\d+$/.test(t) ? Number(t) : null;
+  }
+  document.querySelectorAll('input.count-input').forEach(inp => inp.addEventListener('input', () => {
+    const t = inp.value.replace(/[−–]/g, '-');
+    const sign = /^[-+]/.test(t) ? t[0] : '';
+    inp.value = sign + t.replace(/[^0-9]/g, '');
+  }));
+  document.querySelectorAll('[data-sign]').forEach(btn => btn.addEventListener('click', () => {
+    const inp = document.getElementById(btn.dataset.sign);
+    const v = inp.value;
+    inp.value = v.startsWith('-') ? v.slice(1) : '-' + v.replace(/^\+/, '');
+    inp.focus();
+  }));
 
   const store = {
     get(k, d) { try { const v = localStorage.getItem('hilo:' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
@@ -473,8 +493,8 @@
   }
   function submitRunning() {
     const raw = $('r-input').value.trim();
-    if (raw === '' || isNaN(Number(raw))) { $('r-input').focus(); return; }
-    const guess = Number(raw);
+    const guess = parseCount(raw);
+    if (guess === null) { $('r-input').focus(); return; }
     const actual = rDealt.reduce((s, c) => s + hiLo(c.rank), 0);
     rStats.rounds++;
     const fb = $('r-feedback');
@@ -556,8 +576,8 @@
   function submitTrue() {
     if (tAnswered) { nextTrue(); return; }
     const raw = $('t-input').value.trim();
-    if (raw === '' || isNaN(Number(raw))) { $('t-input').focus(); return; }
-    const guess = Number(raw);
+    const guess = parseCount(raw);
+    if (guess === null) { $('t-input').focus(); return; }
     const exact = tProblem.rc / tProblem.decks;
     const rounded = Math.round(exact) || 0;
     const truncated = Math.trunc(exact) || 0;
