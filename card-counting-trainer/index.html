@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hi-Lo Count Trainer</title>
+<style>
+  :root {
+    --bg: #0f3d2e;
+    --bg-2: #0b2e22;
+    --felt-line: rgba(255,255,255,0.08);
+    --panel: rgba(0,0,0,0.25);
+    --text: #f2efe6;
+    --muted: #b9c7bf;
+    --gold: #e9c46a;
+    --plus: #5fd38d;
+    --zero: #c9d1cc;
+    --minus: #ff7b72;
+    --card-bg: #fdfcf8;
+    --card-red: #c62828;
+    --card-black: #1b1b1b;
+    --btn: rgba(255,255,255,0.1);
+    --btn-hover: rgba(255,255,255,0.18);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #1b5e45;
+      --bg-2: #154d38;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--bg-2); }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg-2) radial-gradient(ellipse at top, var(--bg) 0%, var(--bg-2) 70%) no-repeat;
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
+  header { text-align: center; margin-bottom: 18px; }
+  header h1 { margin: 0; font-size: clamp(1.6rem, 4vw, 2.3rem); letter-spacing: 0.02em; }
+  header h1 span { color: var(--gold); }
+  header p { margin: 4px 0 0; color: var(--muted); }
+
+  nav { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
+  nav button {
+    background: var(--btn); color: var(--text); border: 1px solid var(--felt-line);
+    padding: 8px 14px; border-radius: 999px; font-size: 0.95rem; cursor: pointer;
+  }
+  nav button:hover { background: var(--btn-hover); }
+  nav button[aria-selected="true"] { background: var(--gold); color: #1b1b1b; font-weight: 600; }
+
+  section.panel {
+    background: var(--panel); border: 1px solid var(--felt-line);
+    border-radius: var(--radius); padding: 20px;
+  }
+  section.panel[hidden] { display: none; }
+  h2 { margin: 0 0 8px; font-size: 1.3rem; }
+  h3 { margin: 18px 0 6px; font-size: 1.05rem; color: var(--gold); }
+  p { margin: 6px 0; }
+  .muted { color: var(--muted); }
+
+  /* value chart */
+  .chart { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+  .chart > div { border-radius: 12px; padding: 12px; text-align: center; background: rgba(0,0,0,0.2); }
+  .chart .v { font-size: 1.8rem; font-weight: 700; }
+  .chart .plus .v { color: var(--plus); }
+  .chart .zero .v { color: var(--zero); }
+  .chart .minus .v { color: var(--minus); }
+  .chart .cards { font-size: 1rem; letter-spacing: 0.05em; }
+  .chart .why { font-size: 0.82rem; color: var(--muted); }
+
+  ol.steps { padding-left: 20px; margin: 6px 0; }
+  ol.steps li { margin: 4px 0; }
+  table.bet { border-collapse: collapse; width: 100%; margin-top: 6px; font-size: 0.95rem; }
+  table.bet th, table.bet td { border-bottom: 1px solid var(--felt-line); padding: 6px 8px; text-align: left; }
+  .formula {
+    display: inline-block; background: rgba(0,0,0,0.3); padding: 6px 12px; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  /* playing cards */
+  .table-area {
+    min-height: 170px; display: flex; align-items: center; justify-content: center;
+    gap: 12px; flex-wrap: wrap; margin: 16px 0;
+  }
+  .card {
+    width: 96px; height: 136px; border-radius: 10px; background: var(--card-bg);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.35); position: relative; color: var(--card-black);
+    font-family: Georgia, "Times New Roman", serif; user-select: none;
+    animation: deal 0.18s ease-out;
+  }
+  .card.red { color: var(--card-red); }
+  .card .corner { position: absolute; font-size: 1.1rem; line-height: 1; text-align: center; font-weight: 700; }
+  .card .corner.tl { top: 8px; left: 8px; }
+  .card .corner.br { bottom: 8px; right: 8px; transform: rotate(180deg); }
+  .card .pip { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 2.8rem; }
+  .card.back {
+    background: repeating-linear-gradient(45deg, #8b1e2d 0 6px, #a32638 6px 12px);
+    border: 4px solid var(--card-bg);
+  }
+  .card.small { width: 46px; height: 64px; border-radius: 6px; animation: none; }
+  .card.small .corner { font-size: 0.8rem; top: 4px; left: 4px; }
+  .card.small .corner.br, .card.small .pip { display: none; }
+  .card.small .tag {
+    position: absolute; bottom: 3px; left: 0; right: 0; text-align: center;
+    font-family: system-ui, sans-serif; font-size: 0.75rem; font-weight: 700;
+  }
+  @keyframes deal { from { transform: translateY(-14px) scale(0.96); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .card { animation: none; } }
+
+  /* controls */
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  .btn {
+    background: var(--btn); color: var(--text); border: 1px solid var(--felt-line);
+    padding: 10px 18px; border-radius: 10px; font-size: 1rem; cursor: pointer; min-width: 64px;
+  }
+  .btn:hover { background: var(--btn-hover); }
+  .btn.primary { background: var(--gold); color: #1b1b1b; font-weight: 600; border-color: transparent; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.big { font-size: 1.4rem; font-weight: 700; padding: 14px 0; min-width: 96px; }
+  .btn.plus { color: var(--plus); }
+  .btn.zero { color: var(--zero); }
+  .btn.minus { color: var(--minus); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+  select, input[type="number"] {
+    background: rgba(0,0,0,0.35); color: var(--text); border: 1px solid var(--felt-line);
+    border-radius: 8px; padding: 8px 10px; font-size: 1rem;
+  }
+  input[type="number"] { width: 110px; text-align: center; font-size: 1.3rem; }
+  .settings { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin: 10px 0 4px; }
+
+  .stats { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 10px 0; }
+  .stat { background: rgba(0,0,0,0.25); border-radius: 10px; padding: 6px 14px; text-align: center; min-width: 88px; }
+  .stat b { display: block; font-size: 1.25rem; }
+  .stat span { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .feedback { text-align: center; min-height: 1.6em; font-weight: 600; margin: 8px 0; }
+  .feedback.good { color: var(--plus); }
+  .feedback.bad { color: var(--minus); }
+  .hint { text-align: center; font-size: 0.82rem; color: var(--muted); margin-top: 10px; }
+  kbd {
+    background: rgba(255,255,255,0.12); border-radius: 4px; padding: 1px 6px;
+    font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem;
+  }
+
+  .review { margin-top: 14px; }
+  .review-grid { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .review-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .review-item .rc { font-size: 0.75rem; color: var(--muted); }
+  .t-plus { color: var(--plus); } .t-zero { color: #6b6b6b; } .t-minus { color: var(--minus); }
+
+  .shoe { margin: 16px auto; max-width: 420px; }
+  .shoe-bar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; border: 1px solid var(--felt-line); }
+  .shoe-bar .left { background: var(--gold); }
+  .shoe-bar .used { background: rgba(255,255,255,0.12); }
+  .shoe-legend { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+  .big-num { font-size: 2.6rem; font-weight: 700; text-align: center; line-height: 1.1; }
+  .tc-box { display: flex; gap: 26px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+  .tc-box > div { text-align: center; }
+  .tc-box .lbl { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  @media (max-width: 520px) {
+    .card { width: 78px; height: 110px; }
+    .card .pip { font-size: 2.2rem; }
+    section.panel { padding: 16px; }
+    .chart { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Hi-Lo <span>Count Trainer</span></h1>
+    <p>Learn to count cards in blackjack, one drill at a time.</p>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" data-tab="learn" aria-selected="true">1. Learn</button>
+    <button role="tab" data-tab="values">2. Card Values</button>
+    <button role="tab" data-tab="running">3. Running Count</button>
+    <button role="tab" data-tab="true">4. True Count</button>
+  </nav>
+
+  <!-- LEARN -->
+  <section class="panel" id="tab-learn">
+    <h2>How the Hi-Lo system works</h2>
+    <p>Blackjack is one of the few casino games where the odds change as cards come out of the shoe. A deck rich in <b>high cards</b> (10s and Aces) favors the player: you get more blackjacks, double-downs win more often, and the dealer busts more. Hi-Lo tracks that balance with a single number.</p>
+
+    <div class="chart">
+      <div class="plus"><div class="v">+1</div><div class="cards">2 3 4 5 6</div><div class="why">Low cards gone → good for you</div></div>
+      <div class="zero"><div class="v">0</div><div class="cards">7 8 9</div><div class="why">Neutral — ignore them</div></div>
+      <div class="minus"><div class="v">−1</div><div class="cards">10 J Q K A</div><div class="why">High cards gone → bad for you</div></div>
+    </div>
+
+    <h3>Step 1 — Keep a running count</h3>
+    <ol class="steps">
+      <li>Start at <b>0</b> when the dealer shuffles.</li>
+      <li>For every card you see, add its value: +1, 0, or −1.</li>
+      <li>Keep going across hands until the next shuffle.</li>
+    </ol>
+    <p class="muted">Example: 5, K, 3, 8, 2, A → +1 −1 +1 0 +1 −1 = <b>+1</b></p>
+    <p class="muted">Tip: count cards in pairs. A low and a high card cancel out (e.g. 4 + Q = 0), so you can skip past them.</p>
+
+    <h3>Step 2 — Convert to a true count</h3>
+    <p>A +6 running count means a lot with one deck left, and very little with six. Divide by the decks still in the shoe:</p>
+    <p><span class="formula">True Count = Running Count ÷ Decks Remaining</span></p>
+    <p class="muted">Example: running count +8 with 4 decks left → true count +2. Estimate decks left by eyeballing the discard tray.</p>
+
+    <h3>Step 3 — Use it</h3>
+    <table class="bet">
+      <tr><th>True count</th><th>What it means</th><th>Typical bet</th></tr>
+      <tr><td>≤ 0</td><td>House edge as normal or worse</td><td>Minimum bet</td></tr>
+      <tr><td>+1</td><td>Roughly break-even</td><td>Minimum bet</td></tr>
+      <tr><td>+2</td><td>Small player edge</td><td>2 units</td></tr>
+      <tr><td>+3</td><td>Player edge grows</td><td>4 units</td></tr>
+      <tr><td>+4 and up</td><td>Strong player edge</td><td>6–8 units</td></tr>
+    </table>
+    <p class="muted">Every +1 of true count shifts the edge about 0.5% toward the player. A full deck always counts to exactly 0, which is a handy self-check.</p>
+
+    <h3>Practice path</h3>
+    <ol class="steps">
+      <li><b>Card Values</b> — make the +1/0/−1 instant and automatic.</li>
+      <li><b>Running Count</b> — keep a count while cards are dealt at speed.</li>
+      <li><b>True Count</b> — practice the division until it's quick.</li>
+    </ol>
+    <p class="muted" style="font-size:0.82rem;margin-top:14px">This is a learning tool. Card counting is legal, but casinos may ask counters to leave or stop playing blackjack.</p>
+    <div class="row" style="margin-top:14px"><button class="btn primary" data-goto="values">Start practicing →</button></div>
+  </section>
+
+  <!-- CARD VALUES -->
+  <section class="panel" id="tab-values" hidden>
+    <h2>Drill 1: Card values</h2>
+    <p class="muted">A card appears. Tap its Hi-Lo value as fast as you can.</p>
+    <div class="stats">
+      <div class="stat"><b id="v-correct">0</b><span>Correct</span></div>
+      <div class="stat"><b id="v-acc">–</b><span>Accuracy</span></div>
+      <div class="stat"><b id="v-streak">0</b><span>Streak</span></div>
+      <div class="stat"><b id="v-best">0</b><span>Best streak</span></div>
+      <div class="stat"><b id="v-speed">–</b><span>Avg time</span></div>
+    </div>
+    <div class="table-area" id="v-table"></div>
+    <div class="feedback" id="v-feedback"></div>
+    <div class="row">
+      <button class="btn big minus" data-val="-1">−1</button>
+      <button class="btn big zero" data-val="0">0</button>
+      <button class="btn big plus" data-val="1">+1</button>
+    </div>
+    <div class="row" style="margin-top:12px"><button class="btn" id="v-reset">Reset stats</button></div>
+    <p class="hint">Keyboard: <kbd>←</kbd> / <kbd>-</kbd> for −1 · <kbd>↓</kbd> / <kbd>0</kbd> for 0 · <kbd>→</kbd> / <kbd>+</kbd> for +1</p>
+  </section>
+
+  <!-- RUNNING COUNT -->
+  <section class="panel" id="tab-running" hidden>
+    <h2>Drill 2: Running count</h2>
+    <p class="muted">Cards will be dealt one after another. Keep the count in your head, then enter it at the end.</p>
+    <div class="settings">
+      <label class="field">Cards
+        <select id="r-count">
+          <option value="10">10 cards</option>
+          <option value="20" selected>20 cards</option>
+          <option value="30">30 cards</option>
+          <option value="52">Full deck (52)</option>
+        </select>
+      </label>
+      <label class="field">Speed
+        <select id="r-speed">
+          <option value="2000">Beginner (2.0s)</option>
+          <option value="1200" selected>Steady (1.2s)</option>
+          <option value="800">Quick (0.8s)</option>
+          <option value="500">Fast (0.5s)</option>
+          <option value="300">Pro (0.3s)</option>
+        </select>
+      </label>
+      <label class="field">Cards at a time
+        <select id="r-group">
+          <option value="1" selected>1</option>
+          <option value="2">2 (practice pairing)</option>
+          <option value="3">3</option>
+        </select>
+      </label>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="r-rounds">0</b><span>Rounds</span></div>
+      <div class="stat"><b id="r-acc">–</b><span>Accuracy</span></div>
+      <div class="stat"><b id="r-streak">0</b><span>Streak</span></div>
+    </div>
+    <div class="table-area" id="r-table"><div class="card back"></div></div>
+    <div class="feedback" id="r-progress"></div>
+    <div class="row" id="r-start-row"><button class="btn primary" id="r-start">Deal</button></div>
+    <div class="row" id="r-answer-row" hidden>
+      <label class="field" style="align-items:center">Running count
+        <input type="number" id="r-input" step="1" inputmode="numeric">
+      </label>
+      <button class="btn primary" id="r-submit">Check</button>
+    </div>
+    <div class="feedback" id="r-feedback"></div>
+    <div class="review" id="r-review" hidden>
+      <h3 style="text-align:center">Replay: each card and the count after it</h3>
+      <div class="review-grid" id="r-review-grid"></div>
+    </div>
+  </section>
+
+  <!-- TRUE COUNT -->
+  <section class="panel" id="tab-true" hidden>
+    <h2>Drill 3: True count</h2>
+    <p class="muted">Divide the running count by the decks left in the shoe. Round to the nearest whole number (rounding down toward zero is also accepted — many players do that).</p>
+    <div class="stats">
+      <div class="stat"><b id="t-correct">0</b><span>Correct</span></div>
+      <div class="stat"><b id="t-acc">–</b><span>Accuracy</span></div>
+      <div class="stat"><b id="t-streak">0</b><span>Streak</span></div>
+    </div>
+    <div class="tc-box">
+      <div><div class="lbl">Running count</div><div class="big-num" id="t-rc">0</div></div>
+      <div><div class="lbl">Decks remaining</div><div class="big-num" id="t-decks">0</div></div>
+    </div>
+    <div class="shoe">
+      <div class="shoe-bar"><div class="left" id="t-left"></div><div class="used" id="t-used"></div></div>
+      <div class="shoe-legend"><span>In shoe</span><span id="t-shoe-size">6-deck shoe</span><span>Discarded</span></div>
+    </div>
+    <div class="row">
+      <label class="field" style="align-items:center">True count
+        <input type="number" id="t-input" step="1" inputmode="numeric">
+      </label>
+      <button class="btn primary" id="t-submit">Check</button>
+      <button class="btn" id="t-next" hidden>Next →</button>
+    </div>
+    <div class="feedback" id="t-feedback"></div>
+    <p class="hint" id="t-explain"></p>
+  </section>
+</div>
+
+<script>
+(() => {
+  // ---------- helpers ----------
+  const $ = (id) => document.getElementById(id);
+  const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+  const SUITS = [{ s: '♠', red: false }, { s: '♥', red: true }, { s: '♦', red: true }, { s: '♣', red: false }];
+  const hiLo = (rank) => ['2','3','4','5','6'].includes(rank) ? 1 : ['7','8','9'].includes(rank) ? 0 : -1;
+  const fmt = (n) => n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '0';
+  const rand = (n) => Math.floor(Math.random() * n);
+  const randomCard = () => ({ rank: RANKS[rand(13)], suit: SUITS[rand(4)] });
+
+  function buildShoe(decks) {
+    const cards = [];
+    for (let d = 0; d < decks; d++)
+      for (const rank of RANKS) for (const suit of SUITS) cards.push({ rank, suit });
+    for (let i = cards.length - 1; i > 0; i--) { const j = rand(i + 1); [cards[i], cards[j]] = [cards[j], cards[i]]; }
+    return cards;
+  }
+
+  function cardEl(card, small = false) {
+    const el = document.createElement('div');
+    el.className = 'card' + (card.suit.red ? ' red' : '') + (small ? ' small' : '');
+    const label = `${card.rank}<br>${card.suit.s}`;
+    el.innerHTML = `<div class="corner tl">${label}</div><div class="pip">${card.suit.s}</div><div class="corner br">${label}</div>`;
+    el.setAttribute('aria-label', `${card.rank} of ${card.suit.s}`);
+    return el;
+  }
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('hilo:' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('hilo:' + k, JSON.stringify(v)); } catch {} }
+  };
+
+  // ---------- tabs ----------
+  let activeTab = 'learn';
+  function showTab(name) {
+    activeTab = name;
+    document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === name));
+    document.querySelectorAll('section.panel').forEach(s => s.hidden = s.id !== 'tab-' + name);
+    if (name === 'values' && !vCard) nextValueCard();
+    if (name === 'true' && !tProblem) nextTrue();
+    store.set('tab', name);
+  }
+  document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+  document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.goto)));
+
+  // ---------- Drill 1: card values ----------
+  const vStats = store.get('values', { correct: 0, total: 0, streak: 0, best: 0, time: 0 });
+  let vCard = null, vShownAt = 0, vLocked = false;
+
+  function renderValueStats() {
+    $('v-correct').textContent = vStats.correct;
+    $('v-acc').textContent = vStats.total ? Math.round(100 * vStats.correct / vStats.total) + '%' : '–';
+    $('v-streak').textContent = vStats.streak;
+    $('v-best').textContent = vStats.best;
+    $('v-speed').textContent = vStats.correct ? (vStats.time / vStats.correct / 1000).toFixed(2) + 's' : '–';
+  }
+  function nextValueCard() {
+    let c; do { c = randomCard(); } while (vCard && c.rank === vCard.rank && c.suit === vCard.suit);
+    vCard = c;
+    $('v-table').replaceChildren(cardEl(vCard));
+    vShownAt = performance.now();
+    vLocked = false;
+  }
+  function answerValue(val) {
+    if (activeTab !== 'values' || vLocked || !vCard) return;
+    const correct = hiLo(vCard.rank);
+    const fb = $('v-feedback');
+    vStats.total++;
+    if (val === correct) {
+      vStats.correct++; vStats.streak++; vStats.best = Math.max(vStats.best, vStats.streak);
+      vStats.time += performance.now() - vShownAt;
+      fb.className = 'feedback good';
+      fb.textContent = `✓ ${vCard.rank} = ${fmt(correct)}`;
+      vLocked = true;
+      setTimeout(nextValueCard, 250);
+    } else {
+      vStats.streak = 0;
+      fb.className = 'feedback bad';
+      fb.textContent = `✗ ${vCard.rank} is ${fmt(correct)} — ${correct === 1 ? '2 through 6 are +1' : correct === 0 ? '7, 8, 9 are 0' : '10s, faces and Aces are −1'}`;
+      vLocked = true;
+      setTimeout(nextValueCard, 1300);
+    }
+    store.set('values', vStats);
+    renderValueStats();
+  }
+  document.querySelectorAll('[data-val]').forEach(b => b.addEventListener('click', () => answerValue(Number(b.dataset.val))));
+  $('v-reset').addEventListener('click', () => {
+    Object.assign(vStats, { correct: 0, total: 0, streak: 0, best: 0, time: 0 });
+    store.set('values', vStats); renderValueStats(); $('v-feedback').textContent = '';
+  });
+  document.addEventListener('keydown', (e) => {
+    if (activeTab !== 'values' || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    const map = { ArrowLeft: -1, '-': -1, ArrowDown: 0, '0': 0, ArrowRight: 1, '+': 1, '=': 1 };
+    if (e.key in map) { e.preventDefault(); answerValue(map[e.key]); }
+  });
+  renderValueStats();
+
+  // ---------- Drill 2: running count ----------
+  const rStats = store.get('running', { rounds: 0, correct: 0, streak: 0 });
+  let rDealt = [], rTimer = null;
+
+  function renderRunningStats() {
+    $('r-rounds').textContent = rStats.rounds;
+    $('r-acc').textContent = rStats.rounds ? Math.round(100 * rStats.correct / rStats.rounds) + '%' : '–';
+    $('r-streak').textContent = rStats.streak;
+  }
+  function startRunning() {
+    const n = Number($('r-count').value), speed = Number($('r-speed').value), group = Number($('r-group').value);
+    const shoe = buildShoe(1);
+    rDealt = shoe.slice(0, n);
+    $('r-start-row').hidden = true;
+    $('r-answer-row').hidden = true;
+    $('r-review').hidden = true;
+    $('r-feedback').textContent = '';
+    ['r-count', 'r-speed', 'r-group'].forEach(id => $(id).disabled = true);
+    let i = 0;
+    const step = () => {
+      if (i >= rDealt.length) {
+        clearInterval(rTimer);
+        $('r-table').replaceChildren(Object.assign(document.createElement('div'), { className: 'card back' }));
+        $('r-progress').textContent = 'What is the running count?';
+        $('r-answer-row').hidden = false;
+        $('r-input').value = '';
+        $('r-input').focus();
+        return;
+      }
+      const batch = rDealt.slice(i, i + group);
+      $('r-table').replaceChildren(...batch.map(c => cardEl(c)));
+      i += batch.length;
+      $('r-progress').textContent = `Card ${i} of ${rDealt.length}`;
+    };
+    step();
+    rTimer = setInterval(step, speed);
+  }
+  function submitRunning() {
+    const raw = $('r-input').value.trim();
+    if (raw === '' || isNaN(Number(raw))) { $('r-input').focus(); return; }
+    const guess = Number(raw);
+    const actual = rDealt.reduce((s, c) => s + hiLo(c.rank), 0);
+    rStats.rounds++;
+    const fb = $('r-feedback');
+    if (guess === actual) {
+      rStats.correct++; rStats.streak++;
+      fb.className = 'feedback good';
+      fb.textContent = `✓ Correct! The count is ${fmt(actual)}.`;
+    } else {
+      rStats.streak = 0;
+      fb.className = 'feedback bad';
+      fb.textContent = `✗ You said ${fmt(guess)} — the count is ${fmt(actual)} (off by ${Math.abs(guess - actual)}).`;
+    }
+    store.set('running', rStats);
+    renderRunningStats();
+
+    // replay
+    let rc = 0;
+    const grid = $('r-review-grid');
+    grid.replaceChildren(...rDealt.map(c => {
+      const v = hiLo(c.rank); rc += v;
+      const item = document.createElement('div'); item.className = 'review-item';
+      const ce = cardEl(c, true);
+      const tag = document.createElement('div');
+      tag.className = 'tag ' + (v > 0 ? 't-plus' : v < 0 ? 't-minus' : 't-zero');
+      tag.textContent = fmt(v);
+      ce.appendChild(tag);
+      const rcEl = document.createElement('div'); rcEl.className = 'rc'; rcEl.textContent = fmt(rc);
+      item.append(ce, rcEl);
+      return item;
+    }));
+    $('r-review').hidden = false;
+    $('r-answer-row').hidden = true;
+    $('r-progress').textContent = '';
+    $('r-start').textContent = 'Deal again';
+    $('r-start-row').hidden = false;
+    ['r-count', 'r-speed', 'r-group'].forEach(id => $(id).disabled = false);
+  }
+  $('r-start').addEventListener('click', startRunning);
+  $('r-submit').addEventListener('click', submitRunning);
+  $('r-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitRunning(); });
+  renderRunningStats();
+
+  // ---------- Drill 3: true count ----------
+  const tStats = store.get('true', { correct: 0, total: 0, streak: 0 });
+  let tProblem = null, tAnswered = false;
+
+  function renderTrueStats() {
+    $('t-correct').textContent = tStats.correct;
+    $('t-acc').textContent = tStats.total ? Math.round(100 * tStats.correct / tStats.total) + '%' : '–';
+    $('t-streak').textContent = tStats.streak;
+  }
+  function nextTrue() {
+    const shoeSize = [2, 6, 6, 8][rand(4)];
+    const halfDecks = 1 + rand(shoeSize * 2 - 1);            // 0.5 .. shoeSize-0.5 decks left
+    const decks = halfDecks / 2;
+    const tc = rand(13) - 4;                                  // aim for true counts -4..+8
+    let rc = Math.round(tc * decks + (rand(3) - 1) * decks * 0.4);
+    if (rc === 0) rc = rand(2) ? 1 : -1;
+    tProblem = { rc, decks, shoeSize };
+    tAnswered = false;
+    $('t-rc').textContent = fmt(rc);
+    $('t-decks').textContent = decks % 1 ? decks.toFixed(1) : decks;
+    $('t-left').style.width = (100 * decks / shoeSize) + '%';
+    $('t-used').style.width = (100 * (shoeSize - decks) / shoeSize) + '%';
+    $('t-shoe-size').textContent = shoeSize + '-deck shoe';
+    $('t-input').value = '';
+    $('t-feedback').textContent = '';
+    $('t-explain').textContent = '';
+    $('t-submit').hidden = false;
+    $('t-next').hidden = true;
+    if (activeTab === 'true') $('t-input').focus();
+  }
+  function betAdvice(tc) {
+    if (tc <= 1) return 'Bet the table minimum.';
+    if (tc === 2) return 'Player edge — bet about 2 units.';
+    if (tc === 3) return 'Good count — bet about 4 units.';
+    return 'Strong count — bet your max spread.';
+  }
+  function submitTrue() {
+    if (tAnswered) { nextTrue(); return; }
+    const raw = $('t-input').value.trim();
+    if (raw === '' || isNaN(Number(raw))) { $('t-input').focus(); return; }
+    const guess = Number(raw);
+    const exact = tProblem.rc / tProblem.decks;
+    const rounded = Math.round(exact) || 0;
+    const truncated = Math.trunc(exact) || 0;
+    const ok = guess === rounded || guess === truncated;
+    tStats.total++;
+    const fb = $('t-feedback');
+    if (ok) {
+      tStats.correct++; tStats.streak++;
+      fb.className = 'feedback good';
+      fb.textContent = `✓ Correct — true count ${fmt(rounded)}.`;
+    } else {
+      tStats.streak = 0;
+      fb.className = 'feedback bad';
+      fb.textContent = `✗ The true count is ${fmt(rounded)}${truncated !== rounded ? ` (or ${fmt(truncated)} rounding toward zero)` : ''}.`;
+    }
+    $('t-explain').textContent = `${fmt(tProblem.rc)} ÷ ${tProblem.decks} = ${exact.toFixed(2)}. ${betAdvice(rounded)}`;
+    store.set('true', tStats);
+    renderTrueStats();
+    tAnswered = true;
+    $('t-submit').hidden = true;
+    $('t-next').hidden = false;
+    $('t-next').focus();
+  }
+  $('t-submit').addEventListener('click', submitTrue);
+  $('t-next').addEventListener('click', nextTrue);
+  $('t-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitTrue(); } });
+  renderTrueStats();
+
+  showTab(store.get('tab', 'learn'));
+})();
+</script>
+</body>
+</html>
