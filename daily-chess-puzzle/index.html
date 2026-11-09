@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Chess Puzzle</title>
+  <meta name="description" content="A new checkmate puzzle every day — the same puzzle for everyone.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♞</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">♞&#xFE0E;</span>
+      <div>
+        <h1>Daily Chess Puzzle</h1>
+        <p class="sub" id="puzzle-meta">&nbsp;</p>
+      </div>
+    </div>
+    <button class="icon-btn" id="stats-btn" aria-label="Statistics" title="Statistics">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 20h3V10H4v10Zm6.5 0h3V4h-3v16ZM17 20h3v-7h-3v7Z"/></svg>
+    </button>
+  </header>
+
+  <main class="layout">
+    <section class="board-wrap">
+      <div class="board" id="board" role="grid" aria-label="Chess board"></div>
+    </section>
+
+    <aside class="panel">
+      <div class="task">
+        <span class="turn-dot" id="turn-dot"></span>
+        <div>
+          <h2 id="task-title">Loading…</h2>
+          <p id="task-sub" class="muted"></p>
+        </div>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
+
+      <div class="counters">
+        <div><span id="tries-count">1</span><label>Try</label></div>
+        <div><span id="hints-count">0</span><label>Hints used</label></div>
+        <div><span id="moves-count">0/1</span><label>Your moves</label></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="hint-btn">💡 Hint</button>
+        <button class="btn" id="restart-btn">↺ Restart</button>
+        <button class="btn ghost" id="solution-btn">Show solution</button>
+      </div>
+
+      <div class="done" id="done" hidden>
+        <h3 id="done-title">Solved!</h3>
+        <p id="done-text" class="muted"></p>
+        <p class="note" id="done-note"></p>
+        <div class="squares" id="done-squares"></div>
+        <button class="btn primary" id="share-btn">Share result</button>
+        <p class="next">Next puzzle in <strong id="countdown">--:--:--</strong></p>
+      </div>
+
+      <details class="how">
+        <summary>How to play</summary>
+        <ul>
+          <li>Every day there's one new puzzle — the same for everyone. It changes at midnight.</li>
+          <li>Find the checkmate. Drag a piece or tap it and tap a square.</li>
+          <li>Wrong move? No problem — it's taken back and you can try again as many times as you like.</li>
+          <li>Stuck? <b>Hint</b> first shows which piece to move, then where it goes.</li>
+          <li>In longer puzzles the opponent replies automatically after each of your moves.</li>
+        </ul>
+      </details>
+    </aside>
+  </main>
+
+  <dialog id="stats-dialog">
+    <form method="dialog">
+      <h3>Your statistics</h3>
+      <div class="stat-grid">
+        <div><span id="st-played">0</span><label>Played</label></div>
+        <div><span id="st-solved">0</span><label>Solved</label></div>
+        <div><span id="st-streak">0</span><label>Current streak</label></div>
+        <div><span id="st-best">0</span><label>Best streak</label></div>
+      </div>
+      <p class="muted small">A day counts toward your streak when you solve it without using “Show solution”. Stats are saved in this browser.</p>
+      <button class="btn primary" value="close">Close</button>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="vendor/chess.js"></script>
+  <script src="puzzles.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

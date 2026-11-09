@@ -1,0 +1,115 @@
+// Builds ../puzzles.js from the source lists in this folder.
+// Every puzzle is verified with a brute-force mate search: the position must be a
+// forced mate in exactly `n`, and the stored tree lists every first move that forces it.
+//
+//   cd tools && npm install && npm run build
+import { Chess } from 'chess.js';
+import fs from 'fs';
+import { keys, mateLen } from './solver.mjs';
+
+const here = (f) => new URL(f, import.meta.url);
+const readJson = (f) => (fs.existsSync(here(f)) ? JSON.parse(fs.readFileSync(here(f), 'utf8')) : []);
+const uci = (m) => m.from + m.to + (m.promotion || '');
+const VAL = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+
+// ---------- position transforms (to get more puzzles from each pattern) ----------
+const expand = (r) => r.replace(/\d/g, (d) => '1'.repeat(+d));
+const pack = (r) => r.replace(/1+/g, (s) => String(s.length));
+const swapCase = (s) => [...s].map((c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase())).join('');
+function flipColours(fen) {
+  const [b, t, c, ep, h, f] = fen.split(' ');
+  const nc = c === '-' ? '-' : [...swapCase(c)].sort((x, y) => 'KQkq'.indexOf(x) - 'KQkq'.indexOf(y)).join('');
+  return [b.split('/').reverse().map(swapCase).join('/'), t === 'w' ? 'b' : 'w', nc, ep === '-' ? '-' : ep[0] + (9 - +ep[1]), h, f].join(' ');
+}
+function mirrorFiles(fen) {
+  const p = fen.split(' ');
+  if (p[2] !== '-') return null; // castling rights don't survive a mirror
+  p[0] = p[0].split('/').map((r) => pack([...expand(r)].reverse().join(''))).join('/');
+  return p.join(' ');
+}
+
+// ---------- verification ----------
+function opponentInCheck(fen) {
+  const p = fen.split(' '); p[1] = p[1] === 'w' ? 'b' : 'w'; p[3] = '-';
+  return new Chess(p.join(' '), { skipValidation: true }).isCheck();
+}
+// Player node: array of options. [uci] = mating move; [uci, reply, nextNode] = continue.
+function tree(c, k) {
+  const ks = keys(c, k);
+  if (!ks.length) throw new Error('no forced mate in ' + k);
+  if (k === 1) return ks.map((m) => [uci(m)]);
+  return ks.map((m) => {
+    c.move(m);
+    let best = null, bestScore = -1;
+    for (const r of c.moves({ verbose: true })) {
+      c.move(r); const L = mateLen(c, k - 1) ?? 99; c.undo();
+      // the defence that lasts longest; prefer captures, then checks, for a natural reply
+      const s = L * 100 + (r.captured ? VAL[r.captured] * 5 : 0) + (r.san.includes('+') ? 3 : 0);
+      if (s > bestScore) { bestScore = s; best = r; }
+    }
+    c.move(best);
+    const next = tree(c, k - 1);
+    c.undo(); c.undo();
+    return [uci(m), uci(best), next];
+  });
+}
+function verify(p) {
+  new Chess(p.fen); // throws on a malformed FEN
+  if (opponentInCheck(p.fen)) throw new Error('side not to move is in check');
+  const L = mateLen(new Chess(p.fen), p.n);
+  if (L !== p.n) throw new Error('shortest mate is ' + L + ', expected ' + p.n);
+  const t = tree(new Chess(p.fen), p.n);
+  if (t.length > 4) throw new Error('too many solutions (' + t.length + ')');
+  return t;
+}
+
+// ---------- collect sources ----------
+const candidates = [];
+for (const p of readJson('patterns.json')) {
+  const m = mirrorFiles(p.fen);
+  for (const fen of [p.fen, flipColours(p.fen), m, m && flipColours(m)]) if (fen) candidates.push({ ...p, fen });
+}
+for (const g of readJson('games.json')) {
+  const c = new Chess();
+  for (const mv of g.moves.split(' ')) c.move(mv);
+  const { moves, ...rest } = g;
+  candidates.push({ ...rest, fen: c.fen() });
+}
+for (const p of readJson('generated.json')) candidates.push(p);
+
+const seen = new Set();
+const puzzles = [];
+for (const p of candidates) {
+  const key = p.fen.split(' ').slice(0, 2).join(' ');
+  if (seen.has(key)) continue;
+  seen.add(key);
+  try {
+    const t = verify(p);
+    puzzles.push({ name: p.name, ...(p.note ? { note: p.note } : {}), n: p.n, fen: p.fen, tree: t });
+  } catch (e) {
+    console.warn('SKIP', p.name, p.fen, '-', e.message);
+  }
+}
+
+// ---------- fixed, seeded order (this is the daily schedule) ----------
+let seed = 20261109;
+const rnd = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+for (let i = puzzles.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [puzzles[i], puzzles[j]] = [puzzles[j], puzzles[i]]; }
+// keep variants of the same idea apart, and avoid long runs of the same length
+const order = []; const pool = puzzles.slice();
+order.push(pool.splice(Math.max(0, pool.findIndex((p) => p.n === 1)), 1)[0]); // start gently
+while (pool.length) {
+  const recent = order.slice(-12).map((p) => p.name);
+  const last2 = order.slice(-2).map((p) => p.n);
+  let i = pool.findIndex((p) => !recent.includes(p.name) && !(last2.length === 2 && last2.every((n) => n === p.n)));
+  if (i < 0) i = pool.findIndex((p) => !recent.includes(p.name));
+  if (i < 0) i = 0;
+  order.push(pool.splice(i, 1)[0]);
+}
+
+const counts = order.reduce((a, p) => ((a[p.n] = (a[p.n] || 0) + 1), a), {});
+const body = '// Generated by tools/build-puzzles.mjs — do not edit by hand.\n' +
+  '// The array order is the daily schedule: day 1 = index 0, and it loops.\n' +
+  'window.PUZZLES = [\n' + order.map((p) => '  ' + JSON.stringify(p)).join(',\n') + '\n];\n';
+fs.writeFileSync(here('../puzzles.js'), body);
+console.log('Wrote', order.length, 'puzzles', Object.entries(counts).map(([n, c]) => `mate-in-${n}: ${c}`).join(', '));

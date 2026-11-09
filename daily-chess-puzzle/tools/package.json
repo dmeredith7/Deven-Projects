@@ -1,0 +1,8 @@
+{
+  "name": "daily-chess-puzzle-tools",
+  "private": true,
+  "type": "module",
+  "description": "Builds and verifies ../puzzles.js",
+  "scripts": { "build": "node build-puzzles.mjs" },
+  "dependencies": { "chess.js": "1.4.0" }
+}
