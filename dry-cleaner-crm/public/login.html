@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Log in · Dry Cleaner CRM</title>
+  <title data-i18n="Log in · Dry Cleaner CRM">Log in · Dry Cleaner CRM</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -17,63 +17,65 @@
         <div class="brand-name">Dry Cleaner CRM</div>
       </div>
       <div>
-        <h2>Keep your tickets. Lose the “is it ready yet?” calls.</h2>
+        <h2 data-i18n="Keep your tickets. Lose the “is it ready yet?” calls.">Keep your tickets. Lose the “is it ready yet?” calls.</h2>
         <ul>
-          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Works with the paper tickets you already use</li>
-          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Write up orders in seconds from your price list</li>
-          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Customers get a text or email the moment it's ready</li>
-          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Automatic reminders for clothes left on the rack</li>
-          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Every customer's history and preferences in one place</li>
+          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="Works with the paper tickets you already use">Works with the paper tickets you already use</span></li>
+          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="Write up orders in seconds from your price list">Write up orders in seconds from your price list</span></li>
+          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="Customers get a text or email the moment it’s ready">Customers get a text or email the moment it’s ready</span></li>
+          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="Automatic reminders for clothes left on the rack">Automatic reminders for clothes left on the rack</span></li>
+          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="Every customer’s history and preferences in one place">Every customer’s history and preferences in one place</span></li>
         </ul>
       </div>
-      <div class="foot">Made for independent dry cleaners.</div>
+      <div class="foot" data-i18n="Made for independent dry cleaners.">Made for independent dry cleaners.</div>
     </section>
 
     <main class="auth-main">
+      <div class="auth-lang" data-lang-toggle></div>
       <form class="auth-card" id="login" data-view>
-        <div><h1>Welcome back</h1><p class="sub">Log in to your shop.</p></div>
-        <label class="field">Email<input name="email" type="email" autocomplete="email" required></label>
-        <label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <div><h1 data-i18n="Welcome back">Welcome back</h1><p class="sub" data-i18n="Log in to your shop.">Log in to your shop.</p></div>
+        <label class="field"><span data-i18n="Email">Email</span><input name="email" type="email" autocomplete="email" required></label>
+        <label class="field"><span data-i18n="Password">Password</span><input name="password" type="password" autocomplete="current-password" required></label>
         <div class="error" role="alert"></div>
-        <button class="btn btn-primary btn-lg btn-block" type="submit">Log in</button>
-        <div class="auth-links"><a href="#forgot">Forgot password?</a><a href="#signup">Create an account</a></div>
+        <button class="btn btn-primary btn-lg btn-block" type="submit" data-i18n="Log in">Log in</button>
+        <div class="auth-links"><a href="#forgot" data-i18n="Forgot password?">Forgot password?</a><a href="#signup" data-i18n="Create an account">Create an account</a></div>
       </form>
 
       <form class="auth-card" id="signup" data-view hidden>
-        <div><h1>Set up your shop</h1><p class="sub">Takes about a minute. You can change everything later.</p></div>
-        <label class="field">Business name<input name="shop_name" autocomplete="organization" placeholder="e.g. Sparkle Dry Cleaners" required></label>
-        <label class="field">Your name<input name="name" autocomplete="name" required></label>
-        <label class="field">Email<input name="email" type="email" autocomplete="email" required></label>
-        <label class="field">Password<input name="password" type="password" autocomplete="new-password" minlength="8" required>
-          <span class="help">At least 8 characters</span></label>
+        <div><h1 data-i18n="Set up your shop">Set up your shop</h1><p class="sub" data-i18n="Takes about a minute. You can change everything later.">Takes about a minute. You can change everything later.</p></div>
+        <label class="field"><span data-i18n="Business name">Business name</span><input name="shop_name" autocomplete="organization" placeholder="e.g. Sparkle Dry Cleaners" data-i18n-placeholder="e.g. Sparkle Dry Cleaners" required></label>
+        <label class="field"><span data-i18n="Your name">Your name</span><input name="name" autocomplete="name" required></label>
+        <label class="field"><span data-i18n="Email">Email</span><input name="email" type="email" autocomplete="email" required></label>
+        <label class="field"><span data-i18n="Password">Password</span><input name="password" type="password" autocomplete="new-password" minlength="8" required>
+          <span class="help" data-i18n="At least 8 characters">At least 8 characters</span></label>
         <fieldset class="choice">
-          <legend>How do you number tickets?</legend>
-          <label class="check"><input type="radio" name="ticket_mode" value="manual" checked><span>I use pre-numbered paper tickets<small>Type the number from the ticket when you write up an order</small></span></label>
-          <label class="check"><input type="radio" name="ticket_mode" value="auto"><span>Number them for me<small>Orders are numbered automatically, starting at 1001</small></span></label>
+          <legend data-i18n="How do you number tickets?">How do you number tickets?</legend>
+          <label class="check"><input type="radio" name="ticket_mode" value="manual" checked><span><span data-i18n="I use pre-numbered paper tickets">I use pre-numbered paper tickets</span><small data-i18n="Type the number from the ticket when you write up an order">Type the number from the ticket when you write up an order</small></span></label>
+          <label class="check"><input type="radio" name="ticket_mode" value="auto"><span><span data-i18n="Number them for me">Number them for me</span><small data-i18n="Orders are numbered automatically, starting at 1001">Orders are numbered automatically, starting at 1001</small></span></label>
         </fieldset>
         <div class="error" role="alert"></div>
-        <button class="btn btn-primary btn-lg btn-block" type="submit">Create account</button>
-        <div class="auth-links"><span class="muted">Already have an account?</span><a href="#login">Log in</a></div>
+        <button class="btn btn-primary btn-lg btn-block" type="submit" data-i18n="Create account">Create account</button>
+        <div class="auth-links"><span class="muted" data-i18n="Already have an account?">Already have an account?</span><a href="#login" data-i18n="Log in">Log in</a></div>
       </form>
 
       <form class="auth-card" id="forgot" data-view hidden>
-        <div><h1>Reset your password</h1><p class="sub">We'll email you a link to choose a new one.</p></div>
-        <label class="field">Email<input name="email" type="email" autocomplete="email" required></label>
+        <div><h1 data-i18n="Reset your password">Reset your password</h1><p class="sub" data-i18n="We’ll email you a link to choose a new one.">We’ll email you a link to choose a new one.</p></div>
+        <label class="field"><span data-i18n="Email">Email</span><input name="email" type="email" autocomplete="email" required></label>
         <div class="error" role="alert"></div>
-        <div class="notice" hidden>If there's an account for that email, a reset link is on its way. Check your inbox.</div>
-        <button class="btn btn-primary btn-lg btn-block" type="submit">Send reset link</button>
-        <div class="auth-links"><span></span><a href="#login">Back to log in</a></div>
+        <div class="notice" hidden data-i18n="If there’s an account for that email, a reset link is on its way. Check your inbox.">If there’s an account for that email, a reset link is on its way. Check your inbox.</div>
+        <button class="btn btn-primary btn-lg btn-block" type="submit" data-i18n="Send reset link">Send reset link</button>
+        <div class="auth-links"><span></span><a href="#login" data-i18n="Back to log in">Back to log in</a></div>
       </form>
 
       <form class="auth-card" id="reset" data-view hidden>
-        <div><h1>Choose a new password</h1><p class="sub">You'll be logged in right after.</p></div>
-        <label class="field">New password<input name="password" type="password" autocomplete="new-password" minlength="8" required>
-          <span class="help">At least 8 characters</span></label>
+        <div><h1 data-i18n="Choose a new password">Choose a new password</h1><p class="sub" data-i18n="You’ll be logged in right after.">You’ll be logged in right after.</p></div>
+        <label class="field"><span data-i18n="New password">New password</span><input name="password" type="password" autocomplete="new-password" minlength="8" required>
+          <span class="help" data-i18n="At least 8 characters">At least 8 characters</span></label>
         <div class="error" role="alert"></div>
-        <button class="btn btn-primary btn-lg btn-block" type="submit">Save password</button>
+        <button class="btn btn-primary btn-lg btn-block" type="submit" data-i18n="Save password">Save password</button>
       </form>
     </main>
   </div>
+  <script src="/i18n.js"></script>
   <script src="/login.js"></script>
 </body>
 </html>

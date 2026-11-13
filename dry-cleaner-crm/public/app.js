@@ -5,6 +5,11 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const app = $('#app');
 
+// Translation helpers (see i18n.js). t(english, vars) returns the text in the
+// chosen language; tn picks singular/plural; N_ marks text translated later.
+const { t, tn, N_ } = I18N;
+const L = () => I18N.locale();
+
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const money = (c) => (Number(c) < 0 ? '-$' : '$') + (Math.abs(Number(c || 0)) / 100).toFixed(2);
@@ -12,19 +17,18 @@ const toCents = (v) => Math.round(parseFloat(String(v).replace(/[^0-9.\-]/g, '')
 const dollars = (c) => (Number(c || 0) / 100).toFixed(2);
 const localDate = (d = new Date()) => d.toLocaleDateString('en-CA'); // YYYY-MM-DD
 const parseUtc = (s) => new Date(String(s).replace(' ', 'T') + 'Z');
-const dateTime = (s) => (s ? parseUtc(s).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
-const shortDate = (s) => (s ? parseUtc(s).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '');
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const dateTime = (s) => (s ? parseUtc(s).toLocaleString(L(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
+const shortDate = (s) => (s ? parseUtc(s).toLocaleDateString(L(), { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const cleanTicket = (v) => String(v || '').trim().replace(/^#/, '').replace(/\s+/g, '').toUpperCase();
 
 function dueLabel(d) {
   if (!d) return '';
-  const t = localDate();
+  const today = localDate();
   const tomorrow = localDate(new Date(Date.now() + 864e5));
-  if (d === t) return 'Due today';
-  if (d === tomorrow) return 'Due tomorrow';
-  const nice = new Date(d + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  return d < t ? `Overdue · ${nice}` : `Due ${nice}`;
+  if (d === today) return t('Due today');
+  if (d === tomorrow) return t('Due tomorrow');
+  const nice = new Date(d + 'T12:00:00').toLocaleDateString(L(), { weekday: 'short', month: 'short', day: 'numeric' });
+  return d < today ? t('Overdue · {date}', { date: nice }) : t('Due {date}', { date: nice });
 }
 
 // Icons (Lucide-style, MIT).
@@ -57,7 +61,6 @@ const ICONS = {
   hanger: '<path d="M12 7.5a2.2 2.2 0 1 1 2.2-2.2"/><path d="M12 7.5v1.3l-8.3 6.1A1.6 1.6 0 0 0 4.6 18h14.8a1.6 1.6 0 0 0 .9-3.1L12 8.8"/>',
   alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',
   edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
-  wand: '<path d="m15 4 5 5M3 21l12-12M14 3l1 1M20 9l1 1M17 2v2M22 7h-2"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   lock: '<rect width="16" height="11" x="4" y="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   store: '<path d="M3 9 5 3h14l2 6M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0zM5 13v8h14v-8"/>',
@@ -74,11 +77,18 @@ function avatar(name, cls = '') {
   return `<div class="avatar ${cls}" style="background:${AVATAR_COLORS[h % AVATAR_COLORS.length]}">${esc(initials)}</div>`;
 }
 
-const STATUS_LABEL = { received: 'Received', cleaning: 'Cleaning', ready: 'Ready', picked_up: 'Picked up', cancelled: 'Cancelled' };
-const NEXT = { received: ['cleaning', 'Start cleaning'], cleaning: ['ready', 'Mark ready'], ready: ['picked_up', 'Picked up'] };
-const MSG_STATUS = { sent: 'Sent', logged: 'Not sent (not connected)', failed: 'Failed', skipped: 'Skipped', received: 'Reply' };
-const pill = (s) => `<span class="pill ${esc(s)}">${esc(STATUS_LABEL[s] || s)}</span>`;
-const msgPill = (m) => `<span class="pill ${m.direction === 'in' ? 'reply' : esc(m.status)}">${esc(m.direction === 'in' ? 'Reply' : MSG_STATUS[m.status] || m.status)}</span>`;
+const STATUS_LABEL = { received: N_('Received'), cleaning: N_('Cleaning'), ready: N_('Ready'), picked_up: N_('Picked up'), cancelled: N_('Cancelled') };
+// "#1042 marked ready" etc. as whole sentences so word order works in every language.
+const MARKED = { received: N_('#{ticket} marked received'), cleaning: N_('#{ticket} marked cleaning'), ready: N_('#{ticket} marked ready'), picked_up: N_('#{ticket} marked picked up'), cancelled: N_('#{ticket} marked cancelled') };
+const NEXT = { received: ['cleaning', N_('Start cleaning')], cleaning: ['ready', N_('Mark ready')], ready: ['picked_up', N_('Picked up')] };
+const MSG_STATUS = { sent: N_('Sent'), logged: N_('Not sent (not connected)'), failed: N_('Failed'), skipped: N_('Skipped'), received: N_('Reply') };
+const MSG_KIND = { ready: N_('ready notice'), reminder: N_('reminder'), manual: N_('message'), test: N_('test'), reply: N_('customer reply') };
+const CHANNEL_LABEL = { sms: N_('Text'), email: N_('Email') };
+const statusLabel = (s) => (STATUS_LABEL[s] ? t(STATUS_LABEL[s]) : s);
+const channelLabel = (c) => (CHANNEL_LABEL[c] ? t(CHANNEL_LABEL[c]) : c);
+const pill = (s) => `<span class="pill ${esc(s)}">${esc(statusLabel(s))}</span>`;
+const msgPill = (m) =>
+  `<span class="pill ${m.direction === 'in' ? 'reply' : esc(m.status)}">${esc(m.direction === 'in' ? t('Reply') : MSG_STATUS[m.status] ? t(MSG_STATUS[m.status]) : m.status)}</span>`;
 
 async function api(method, path, body) {
   const res = await fetch('/api' + path, {
@@ -89,9 +99,9 @@ async function api(method, path, body) {
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) {
     location.href = '/login.html';
-    throw new Error('Please log in');
+    throw new Error(t('Please log in'));
   }
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) throw new Error(data.error ? I18N.tErr(data.error) : t('Request failed ({status})', { status: res.status }));
   return data;
 }
 
@@ -100,22 +110,22 @@ const isOwner = () => me && me.user.role === 'owner';
 
 let toastTimer;
 function toast(msg) {
-  const t = $('#toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
 }
 
-const CHANNEL_LABEL = { sms: 'Text', email: 'Email' };
 function messageToast(list, prefix = '') {
   list = [].concat(list || []);
   if (!list.length) return prefix && toast(prefix);
   const parts = list.map((m) => {
-    const ch = CHANNEL_LABEL[m.channel] || m.channel;
-    if (m.status === 'sent') return `${ch} sent`;
-    if (m.status === 'logged') return `${ch} saved (not connected yet)`;
-    return `${ch} ${m.status}${m.error ? ': ' + m.error : ''}`;
+    const ch = channelLabel(m.channel);
+    if (m.status === 'sent') return t('{channel} sent', { channel: ch });
+    if (m.status === 'logged') return t('{channel} saved (not connected yet)', { channel: ch });
+    if (m.status === 'failed') return t('{channel} failed', { channel: ch }) + (m.error ? ': ' + I18N.tErr(m.error) : '');
+    return t('{channel} skipped', { channel: ch }) + (m.error ? ': ' + I18N.tErr(m.error) : '');
   });
   toast((prefix ? prefix + ' · ' : '') + parts.join(' · '));
 }
@@ -135,7 +145,7 @@ function modal(title, body, { width } = {}) {
   const back = document.createElement('div');
   back.className = 'modal-back';
   back.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}" ${width ? `style="width:min(${width}px,100%)"` : ''}>
-    <div class="card-head"><h2>${esc(title)}</h2><span class="spacer"></span><button class="icon-btn" data-close aria-label="Close">${icon('x')}</button></div>
+    <div class="card-head"><h2>${esc(title)}</h2><span class="spacer"></span><button class="icon-btn" data-close aria-label="${esc(t('Close'))}">${icon('x')}</button></div>
     ${body}</div>`;
   const close = () => {
     back.remove();
@@ -150,9 +160,9 @@ function modal(title, body, { width } = {}) {
   return { el: back, close };
 }
 
-function setTitle(t) {
-  $('#topbar-title').textContent = t;
-  document.title = `${t} · ${me ? me.shop.name : 'Dry Cleaner CRM'}`;
+function setTitle(title) {
+  $('#topbar-title').textContent = title;
+  document.title = `${title} · ${me ? me.shop.name : 'Dry Cleaner CRM'}`;
 }
 
 const pageHead = (title, sub = '', actions = '') => `
@@ -163,26 +173,26 @@ const emptyState = (ic, title, text = '', action = '') =>
   `<div class="empty-state">${icon(ic)}<h3>${esc(title)}</h3>${text ? `<p>${text}</p>` : ''}${action}</div>`;
 
 // ---------- shared renderers ----------
-function orderList(list, { empty = emptyState('receipt', 'No orders here', 'New orders will show up in this list.') } = {}) {
-  if (!list.length) return empty;
+function orderList(list, { empty } = {}) {
+  if (!list.length) return empty || emptyState('receipt', t('No orders here'), t('New orders will show up in this list.'));
   return `<div class="list">
-    <div class="list-row order-row list-head hide-md"><div>Ticket</div><div>Customer</div><div>Status</div><div>Due</div><div class="num">Total</div><div></div></div>
+    <div class="list-row order-row list-head hide-md"><div>${t('Ticket')}</div><div>${t('Customer')}</div><div>${t('Status')}</div><div>${t('Due')}</div><div class="num">${t('Total')}</div><div></div></div>
     ${list
       .map((o) => {
         const next = NEXT[o.status];
         const overdue = o.due_date && o.due_date < localDate() && ['received', 'cleaning'].includes(o.status);
         return `<div class="list-row order-row click" data-href="#/orders/${o.id}">
-          <div><div class="ticket-no">#${esc(o.ticket)}</div><div class="sub-line">${plural(o.piece_count, 'pc')}</div></div>
+          <div><div class="ticket-no">#${esc(o.ticket)}</div><div class="sub-line">${tn(o.piece_count, '{n} pc', '{n} pcs')}</div></div>
           <div class="who-cell">${avatar(o.customer_name)}<div><div class="name-line">${esc(o.customer_name)}</div>
             <div class="sub-line">${esc(o.customer_phone || o.customer_email || '')}</div></div></div>
           <div class="hide-md">${pill(o.status)}</div>
-          <div class="hide-md"><div class="small ${overdue ? 'danger-text strong' : ''}">${o.status === 'picked_up' ? 'Picked up ' + shortDate(o.picked_up_at) : esc(dueLabel(o.due_date))}</div>
-            <div class="sub-line">${o.rack ? 'Rack ' + esc(o.rack) : ''}</div></div>
+          <div class="hide-md"><div class="small ${overdue ? 'danger-text strong' : ''}">${o.status === 'picked_up' ? t('Picked up {date}', { date: shortDate(o.picked_up_at) }) : esc(dueLabel(o.due_date))}</div>
+            <div class="sub-line">${o.rack ? t('Rack {rack}', { rack: esc(o.rack) }) : ''}</div></div>
           <div class="num hide-md"><div class="strong">${money(o.total_cents)}</div>
-            <div class="sub-line ${o.balance_cents > 0 ? 'danger-text' : ''}">${o.balance_cents > 0 ? money(o.balance_cents) + ' due' : 'Paid'}</div></div>
+            <div class="sub-line ${o.balance_cents > 0 ? 'danger-text' : ''}">${o.balance_cents > 0 ? t('{amount} due', { amount: money(o.balance_cents) }) : t('Paid')}</div></div>
           <div class="row-action">${
             next
-              ? `<button class="btn btn-sm ${next[0] === 'ready' ? 'btn-primary' : ''}" data-advance="${o.id}" data-status="${next[0]}">${next[0] === 'picked_up' ? icon('check', 'sm') : ''}${next[1]}</button>`
+              ? `<button class="btn btn-sm ${next[0] === 'ready' ? 'btn-primary' : ''}" data-advance="${o.id}" data-status="${next[0]}">${next[0] === 'picked_up' ? icon('check', 'sm') : ''}${t(next[1])}</button>`
               : `<span class="md-only">${pill(o.status)}</span>`
           }</div>
         </div>`;
@@ -190,8 +200,8 @@ function orderList(list, { empty = emptyState('receipt', 'No orders here', 'New 
       .join('')}</div>`;
 }
 
-function timeline(list, { showCustomer = false, empty = emptyState('message', 'No messages yet', 'Texts and emails to this customer will appear here.') } = {}) {
-  if (!list.length) return empty;
+function timeline(list, { showCustomer = false, empty } = {}) {
+  if (!list.length) return empty || emptyState('message', t('No messages yet'), t('Texts and emails to this customer will appear here.'));
   return `<div class="timeline">${list
     .map((m) => {
       const ic = m.direction === 'in' ? 'reply' : m.channel === 'email' ? 'mail' : 'phone';
@@ -202,11 +212,11 @@ function timeline(list, { showCustomer = false, empty = emptyState('message', 'N
         : '';
       return `<div class="msg ${m.direction === 'in' ? 'in' : ''}">
         <div class="msg-icon">${icon(ic, 'sm')}</div>
-        <div><div class="msg-meta">${who}<span>${esc(CHANNEL_LABEL[m.channel] || m.channel)} · ${esc(m.kind === 'reply' ? 'customer reply' : m.kind)}</span>
+        <div><div class="msg-meta">${who}<span>${esc(channelLabel(m.channel))} · ${esc(MSG_KIND[m.kind] ? t(MSG_KIND[m.kind]) : m.kind)}</span>
           ${m.order_id && m.ticket ? `<a href="#/orders/${m.order_id}">#${esc(m.ticket)}</a>` : ''}
           <span>${dateTime(m.created_at)}</span>${msgPill(m)}</div>
           <div class="msg-body">${m.subject ? `<strong>${esc(m.subject)}</strong>` : ''}${esc(m.body)}</div>
-          ${m.error ? `<div class="tiny muted" style="margin-top:4px">${esc(m.error)}</div>` : ''}</div>
+          ${m.error ? `<div class="tiny muted" style="margin-top:4px">${esc(I18N.tErr(m.error))}</div>` : ''}</div>
       </div>`;
     })
     .join('')}</div>`;
@@ -220,7 +230,7 @@ document.addEventListener('click', async (e) => {
     await busy(adv, async () => {
       const status = adv.dataset.status;
       const r = await api('POST', `/orders/${adv.dataset.advance}/status`, { status });
-      messageToast(r.messages, `#${r.order.ticket} marked ${STATUS_LABEL[status].toLowerCase()}`);
+      messageToast(r.messages, t(MARKED[status], { ticket: r.order.ticket }));
       route();
     });
     return;
@@ -233,36 +243,41 @@ document.addEventListener('click', async (e) => {
 const views = {};
 
 views.dashboard = async () => {
-  setTitle('Dashboard');
+  setTitle(t('Dashboard'));
   const d = await api('GET', '/dashboard');
   const hour = new Date().getHours();
-  const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const name = esc(me.user.name.split(' ')[0]);
+  const greet = hour < 12 ? t('Good morning, {name}', { name }) : hour < 18 ? t('Good afternoon, {name}', { name }) : t('Good evening, {name}', { name });
   const stat = (href, tone, ic, label, value) =>
     `<a class="stat" href="${href}"><div class="stat-icon tone-${tone}">${icon(ic)}</div><div><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div></a>`;
 
   app.innerHTML = `
-    ${pageHead(`${greet}, ${esc(me.user.name.split(' ')[0])}`, new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }),
-      `<a class="btn btn-primary btn-lg" href="#/orders/new">${icon('plus')}New order</a>`)}
+    ${pageHead(greet, new Date().toLocaleDateString(L(), { weekday: 'long', month: 'long', day: 'numeric' }),
+      `<a class="btn btn-primary btn-lg" href="#/orders/new">${icon('plus')}${t('New order')}</a>`)}
     <form class="search lg" id="quick" style="margin-bottom:20px">${icon('search')}
-      <input id="quick-q" placeholder="Find an order: ticket number, customer name or phone" autocomplete="off"></form>
+      <input id="quick-q" placeholder="${esc(t('Find an order: ticket number, customer name or phone'))}" autocomplete="off"></form>
     <div class="stats">
-      ${stat('#/orders?status=received', 'received', 'receipt', 'Waiting to clean', d.by_status.received)}
-      ${stat('#/orders?status=cleaning', 'cleaning', 'sparkle', 'Cleaning', d.by_status.cleaning)}
-      ${stat('#/orders?status=ready', 'ready', 'check', 'Ready for pickup', d.by_status.ready)}
-      ${stat('#/orders?status=open', 'primary', 'dollar', 'Sales today', money(d.sales_today_cents))}
+      ${stat('#/orders?status=received', 'received', 'receipt', t('Waiting to clean'), d.by_status.received)}
+      ${stat('#/orders?status=cleaning', 'cleaning', 'sparkle', t('Cleaning'), d.by_status.cleaning)}
+      ${stat('#/orders?status=ready', 'ready', 'check', t('Ready for pickup'), d.by_status.ready)}
+      ${stat('#/orders?status=open', 'primary', 'dollar', t('Sales today'), money(d.sales_today_cents))}
     </div>
     <div class="grid two">
       <div class="card">
-        <div class="card-head">${icon('clock')}<h2>Due today &amp; overdue</h2><span class="spacer"></span><span class="hint">${plural(d.due_or_overdue.length, 'order')}</span></div>
-        ${orderList(d.due_or_overdue, { empty: emptyState('check', "You're all caught up", 'No orders are due today.') })}
+        <div class="card-head">${icon('clock')}<h2>${t('Due today & overdue')}</h2><span class="spacer"></span><span class="hint">${tn(d.due_or_overdue.length, '{n} order', '{n} orders')}</span></div>
+        ${orderList(d.due_or_overdue, { empty: emptyState('check', t('You’re all caught up'), t('No orders are due today.')) })}
       </div>
       <div class="card">
-        <div class="card-head">${icon('bell')}<h2>Waiting for pickup</h2><span class="spacer"></span>
-          ${d.reminders_due ? `<button class="btn btn-sm" id="run-rem">${icon('send', 'sm')}Send ${plural(d.reminders_due, 'reminder')}</button>` : `<span class="hint">Reminders go out automatically</span>`}</div>
-        ${orderList(d.awaiting_pickup, { empty: emptyState('shirt', 'Nothing on the rack', 'Orders marked ready will show up here.') })}
+        <div class="card-head">${icon('bell')}<h2>${t('Waiting for pickup')}</h2><span class="spacer"></span>
+          ${d.reminders_due ? `<button class="btn btn-sm" id="run-rem">${icon('send', 'sm')}${tn(d.reminders_due, 'Send {n} reminder', 'Send {n} reminders')}</button>` : `<span class="hint">${t('Reminders go out automatically')}</span>`}</div>
+        ${orderList(d.awaiting_pickup, { empty: emptyState('shirt', t('Nothing on the rack'), t('Orders marked ready will show up here.')) })}
       </div>
     </div>
-    <p class="small muted" style="margin-top:16px">${plural(d.orders_today, 'order')} today · ${money(d.outstanding_balance_cents)} in unpaid balances · ${plural(d.customers, 'customer')}</p>`;
+    <p class="small muted" style="margin-top:16px">${[
+      tn(d.orders_today, '{n} order today', '{n} orders today'),
+      t('{amount} in unpaid balances', { amount: money(d.outstanding_balance_cents) }),
+      tn(d.customers, '{n} customer', '{n} customers'),
+    ].join(' · ')}</p>`;
 
   $('#quick').onsubmit = async (e) => {
     e.preventDefault();
@@ -278,14 +293,14 @@ views.dashboard = async () => {
   if ($('#run-rem')) {
     $('#run-rem').onclick = (e) => busy(e.currentTarget, async () => {
       const r = await api('POST', '/reminders/run');
-      toast(`Reminders sent for ${plural(r.sent.length, 'order')}`);
+      toast(tn(r.sent.length, 'Reminders sent for {n} order', 'Reminders sent for {n} orders'));
       route();
     });
   }
 };
 
 views.orders = async (_, query) => {
-  setTitle('Orders');
+  setTitle(t('Orders'));
   const status = query.has('status') ? query.get('status') : 'open';
   const q = query.get('q') || '';
   const [d, list] = await Promise.all([
@@ -294,32 +309,33 @@ views.orders = async (_, query) => {
   ]);
   const c = d.by_status;
   const tabs = [
-    ['open', 'Active', c.received + c.cleaning + c.ready],
-    ['received', 'Waiting', c.received],
-    ['cleaning', 'Cleaning', c.cleaning],
-    ['ready', 'Ready', c.ready],
-    ['picked_up', 'Picked up', c.picked_up],
-    ['', 'All', null],
+    ['open', t('Active'), c.received + c.cleaning + c.ready],
+    ['received', t('Waiting'), c.received],
+    ['cleaning', t('Cleaning'), c.cleaning],
+    ['ready', t('Ready'), c.ready],
+    ['picked_up', t('Picked up'), c.picked_up],
+    ['', t('All'), null],
   ];
+  const newBtn = `<a class="btn btn-primary" href="#/orders/new">${icon('plus')}${t('New order')}</a>`;
   app.innerHTML = `
-    ${pageHead('Orders', 'Tap an order to see details, or move it along with one click.', `<a class="btn btn-primary" href="#/orders/new">${icon('plus')}New order</a>`)}
+    ${pageHead(t('Orders'), t('Tap an order to see details, or move it along with one click.'), newBtn)}
     <div class="row" style="margin-bottom:16px">
       <div class="tabs">${tabs.map(([k, l, n]) => `<button data-tab="${k}" class="${k === status ? 'active' : ''}">${l}${n != null ? `<span class="count">${n}</span>` : ''}</button>`).join('')}</div>
       <span class="spacer"></span>
-      <form class="search" id="sf" style="width:min(320px,100%)">${icon('search')}<input id="q" value="${esc(q)}" placeholder="Ticket, name, phone or rack"></form>
+      <form class="search" id="sf" style="width:min(320px,100%)">${icon('search')}<input id="q" value="${esc(q)}" placeholder="${esc(t('Ticket, name, phone or rack'))}"></form>
     </div>
     <div class="card">${orderList(list, {
       empty: q
-        ? emptyState('search', 'No matching orders', `Nothing matches “${esc(q)}”. Try a ticket number or phone number.`)
-        : emptyState('receipt', 'No orders here', 'New orders will show up in this list.', `<a class="btn btn-primary" href="#/orders/new">${icon('plus')}New order</a>`),
+        ? emptyState('search', t('No matching orders'), t('Nothing matches “{q}”. Try a ticket number or phone number.', { q: esc(q) }))
+        : emptyState('receipt', t('No orders here'), t('New orders will show up in this list.'), newBtn),
     })}</div>`;
 
   const go = (s, text) => (location.hash = '#/orders?' + new URLSearchParams({ status: s, ...(text ? { q: text } : {}) }));
   $$('[data-tab]').forEach((b) => (b.onclick = () => go(b.dataset.tab, $('#q').value.trim())));
-  let t;
+  let timer;
   $('#q').oninput = () => {
-    clearTimeout(t);
-    t = setTimeout(() => go(status, $('#q').value.trim()), 350);
+    clearTimeout(timer);
+    timer = setTimeout(() => go(status, $('#q').value.trim()), 350);
   };
   $('#sf').onsubmit = (e) => {
     e.preventDefault();
@@ -332,55 +348,54 @@ views.orders = async (_, query) => {
   }
 };
 
-views.newOrder = async (_, query) => {
-  setTitle('New order');
+views.newOrder = async (_, query, restore) => {
+  setTitle(t('New order'));
   const [services, settings] = await Promise.all([api('GET', '/services'), api('GET', '/settings')]);
   const active = services.filter((s) => s.active);
   const categories = [...new Set(active.map((s) => s.category))];
   const taxRate = Number(settings.tax_rate) || 0;
   const paperTickets = settings.ticket_mode === 'manual';
   const due = localDate(new Date(Date.now() + (Number(settings.default_turnaround_days) || 3) * 864e5));
-  let customer = null;
-  let cart = [];
-  let category = '';
-  let seq = 0;
+  // After a language switch the page is redrawn; carry the order in progress over.
+  let { customer = null, cart = [], category = '', seq = 0 } = restore || {};
+  viewState = () => ({ customer, cart, category, seq });
 
   app.innerHTML = `
-    <a class="back" href="#/orders">${icon('back', 'sm')}Orders</a>
-    ${pageHead('New order', 'Pick the customer, tap what they dropped off, and create the ticket.')}
+    <a class="back" href="#/orders">${icon('back', 'sm')}${t('Orders')}</a>
+    ${pageHead(t('New order'), t('Pick the customer, tap what they dropped off, and create the ticket.'))}
     <div class="grid sidebar-right">
       <div class="stack">
-        <div class="card"><div class="card-head">${icon('user')}<h2>Customer</h2></div><div class="card-body" id="cust-box"></div></div>
+        <div class="card"><div class="card-head">${icon('user')}<h2>${t('Customer')}</h2></div><div class="card-body" id="cust-box"></div></div>
         <div class="card">
-          <div class="card-head">${icon('shirt')}<h2>Items</h2><span class="spacer"></span><span class="hint">Tap to add · tap again for more</span></div>
+          <div class="card-head">${icon('shirt')}<h2>${t('Items')}</h2><span class="spacer"></span><span class="hint">${t('Tap to add · tap again for more')}</span></div>
           <div class="card-body stack">
             <div class="chips" id="cats"></div>
             <div class="service-grid" id="tiles"></div>
             <form class="row" id="custom" style="border-top:1px solid var(--border);padding-top:16px">
-              <input id="c-desc" placeholder="Something else? e.g. Wedding gown" style="flex:1;min-width:180px">
+              <input id="c-desc" placeholder="${esc(t('Something else? e.g. Wedding gown'))}" style="flex:1;min-width:180px">
               <div class="money-input" style="width:110px"><input id="c-price" inputmode="decimal" placeholder="0.00"></div>
-              <button class="btn">${icon('plus', 'sm')}Add</button>
+              <button class="btn">${icon('plus', 'sm')}${t('Add')}</button>
             </form>
           </div>
         </div>
       </div>
       <div class="cart-bar" id="cart-bar" hidden><div><div class="strong" id="bar-total"></div><div class="tiny muted" id="bar-pcs"></div></div>
-        <button class="btn btn-primary" id="bar-go">Review ticket</button></div>
+        <button class="btn btn-primary" id="bar-go">${t('Review ticket')}</button></div>
       <div class="card cart" id="cart-card">
-        <div class="card-head">${icon('receipt')}<h2>Ticket</h2><span class="spacer"></span><span class="hint" id="pcs"></span></div>
+        <div class="card-head">${icon('receipt')}<h2>${t('Ticket')}</h2><span class="spacer"></span><span class="hint" id="pcs"></span></div>
         <div class="card-body stack">
-          ${paperTickets ? `<label class="field">Ticket number<input id="ticket" class="ticket-input" placeholder="From the paper ticket" autocomplete="off" maxlength="21">
+          ${paperTickets ? `<label class="field">${t('Ticket number')}<input id="ticket" class="ticket-input" placeholder="${esc(t('From the paper ticket'))}" autocomplete="off" maxlength="21">
             <span class="warn" id="ticket-warn" hidden></span></label>` : ''}
           <div class="cart-items" id="cart"></div>
           <div class="form" style="grid-template-columns:1fr 1fr">
-            <label class="field">Due date<input id="due" type="date" value="${due}"></label>
-            <label class="field">Rack / bin<input id="rack" placeholder="Optional"></label>
-            <label class="field">Discount<div class="money-input"><input id="discount" inputmode="decimal" placeholder="0.00"></div></label>
-            <label class="field">Paid now<div class="money-input"><input id="paid" inputmode="decimal" placeholder="0.00"></div></label>
-            <label class="field full">Notes<textarea id="notes" rows="2" style="min-height:60px" placeholder="Stains, damage, special instructions"></textarea></label>
+            <label class="field">${t('Due date')}<input id="due" type="date" value="${due}"></label>
+            <label class="field">${t('Rack / bin')}<input id="rack" placeholder="${esc(t('Optional'))}"></label>
+            <label class="field">${t('Discount')}<div class="money-input"><input id="discount" inputmode="decimal" placeholder="0.00"></div></label>
+            <label class="field">${t('Paid now')}<div class="money-input"><input id="paid" inputmode="decimal" placeholder="0.00"></div></label>
+            <label class="field full">${t('Notes')}<textarea id="notes" rows="2" style="min-height:60px" placeholder="${esc(t('Stains, damage, special instructions'))}"></textarea></label>
           </div>
           <div class="totals" id="totals"></div>
-          <button class="btn btn-primary btn-lg btn-block" id="save">${icon('check')}Create order</button>
+          <button class="btn btn-primary btn-lg btn-block" id="save">${icon('check')}${t('Create order')}</button>
         </div>
       </div>
     </div>`;
@@ -391,9 +406,9 @@ views.newOrder = async (_, query) => {
     if (customer) {
       box.innerHTML = `<div class="picked-customer">${avatar(customer.name)}
         <div style="flex:1;min-width:0"><div class="name-line">${esc(customer.name)}</div>
-          <div class="sub-line">${esc([customer.phone, customer.email].filter(Boolean).join(' · ') || 'No contact details')}</div></div>
-        <button class="btn btn-sm btn-ghost" id="change">Change</button></div>
-        ${customer.preferences ? `<div class="callout info" style="margin-top:12px">${icon('sparkle', 'sm')}<span><b>Preferences:</b> ${esc(customer.preferences)}</span></div>` : ''}`;
+          <div class="sub-line">${esc([customer.phone, customer.email].filter(Boolean).join(' · ') || t('No contact details'))}</div></div>
+        <button class="btn btn-sm btn-ghost" id="change">${t('Change')}</button></div>
+        ${customer.preferences ? `<div class="callout info" style="margin-top:12px">${icon('sparkle', 'sm')}<span><b>${t('Preferences:')}</b> ${esc(customer.preferences)}</span></div>` : ''}`;
       $('#change').onclick = () => {
         customer = null;
         renderCustomer();
@@ -402,13 +417,13 @@ views.newOrder = async (_, query) => {
       return;
     }
     box.innerHTML = `<div class="row">
-      <div class="search" style="flex:1;min-width:200px">${icon('search')}<input id="cust-q" placeholder="Search by name or phone" autocomplete="off">
+      <div class="search" style="flex:1;min-width:200px">${icon('search')}<input id="cust-q" placeholder="${esc(t('Search by name or phone'))}" autocomplete="off">
         <div class="suggest" id="suggest" hidden></div></div>
-      <button class="btn" id="new-cust">${icon('plus', 'sm')}New customer</button></div>`;
-    let st;
+      <button class="btn" id="new-cust">${icon('plus', 'sm')}${t('New customer')}</button></div>`;
+    let timer;
     $('#cust-q').oninput = () => {
-      clearTimeout(st);
-      st = setTimeout(async () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
         const q = $('#cust-q').value.trim();
         const sug = $('#suggest');
         if (!q) return (sug.hidden = true);
@@ -416,14 +431,14 @@ views.newOrder = async (_, query) => {
         sug.hidden = false;
         sug.innerHTML = list.length
           ? list.slice(0, 8).map((c, i) => `<button type="button" data-i="${i}">${avatar(c.name)}<div style="min-width:0"><div class="name-line">${esc(c.name)}</div><div class="sub-line">${esc(c.phone || c.email || '')}</div></div></button>`).join('')
-          : `<button type="button" data-new>${icon('plus', 'sm')}Add “${esc(q)}” as a new customer</button>`;
+          : `<button type="button" data-new>${icon('plus', 'sm')}${t('Add “{name}” as a new customer', { name: esc(q) })}</button>`;
         $$('[data-i]', sug).forEach((b) => (b.onclick = () => pick(list[b.dataset.i])));
         const nb = $('[data-new]', sug);
         if (nb) nb.onclick = () => newCustomer(q);
       }, 150);
     };
     $('#new-cust').onclick = () => newCustomer('');
-    $('#cust-q').focus();
+    if (!restore) $('#cust-q').focus();
   };
   const pick = (c) => {
     customer = c;
@@ -433,15 +448,15 @@ views.newOrder = async (_, query) => {
   };
   const newCustomer = (prefill) => {
     const looksLikePhone = /^[\d\s()+-]{7,}$/.test(prefill);
-    const m = modal('New customer', `<form class="card-body stack" id="nc">
-      <label class="field">Name<input name="name" value="${looksLikePhone ? '' : esc(prefill)}" required></label>
+    const m = modal(t('New customer'), `<form class="card-body stack" id="nc">
+      <label class="field">${t('Name')}<input name="name" value="${looksLikePhone ? '' : esc(prefill)}" required></label>
       <div class="form" style="grid-template-columns:1fr 1fr">
-        <label class="field">Mobile phone<input name="phone" type="tel" value="${looksLikePhone ? esc(prefill) : ''}"></label>
-        <label class="field">Email<input name="email" type="email"></label>
+        <label class="field">${t('Mobile phone')}<input name="phone" type="tel" value="${looksLikePhone ? esc(prefill) : ''}"></label>
+        <label class="field">${t('Email')}<input name="email" type="email"></label>
       </div>
-      <label class="field">Preferences<input name="preferences" placeholder="e.g. light starch, shirts on hangers"></label>
-      <p class="small muted">We'll text and/or email them when their order is ready.</p>
-      <div class="row"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Save customer</button></div>
+      <label class="field">${t('Preferences')}<input name="preferences" placeholder="${esc(t('e.g. light starch, shirts on hangers'))}"></label>
+      <p class="small muted">${t('We’ll text and/or email them when their order is ready.')}</p>
+      <div class="row"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-close>${t('Cancel')}</button><button class="btn btn-primary">${t('Save customer')}</button></div>
     </form>`);
     $('#nc', m.el).onsubmit = (e) => {
       e.preventDefault();
@@ -454,7 +469,7 @@ views.newOrder = async (_, query) => {
 
   // --- items ---
   const renderTiles = () => {
-    $('#cats').innerHTML = ['', ...categories].map((c) => `<button class="chip ${c === category ? 'active' : ''}" data-cat="${esc(c)}">${esc(c || 'All')}</button>`).join('');
+    $('#cats').innerHTML = ['', ...categories].map((c) => `<button class="chip ${c === category ? 'active' : ''}" data-cat="${esc(c)}">${esc(c || t('All'))}</button>`).join('');
     $$('[data-cat]').forEach((b) => (b.onclick = () => { category = b.dataset.cat; renderTiles(); }));
     const shown = active.filter((s) => !category || s.category === category);
     $('#tiles').innerHTML = shown.length
@@ -463,7 +478,7 @@ views.newOrder = async (_, query) => {
           return `<button class="service-tile ${n ? 'in-cart' : ''}" data-svc="${s.id}">${n ? `<span class="qty-badge">${n}</span>` : ''}
             <span class="name">${esc(s.name)}</span><span class="price">${money(s.price_cents)}</span></button>`;
         }).join('')
-      : `<p class="muted small">No services yet. ${isOwner() ? '<a href="#/services">Add some to your price list</a>.' : ''}</p>`;
+      : `<p class="muted small">${t('No services yet.')} ${isOwner() ? `<a href="#/services">${t('Add some to your price list.')}</a>` : ''}</p>`;
     $$('[data-svc]').forEach((b) => (b.onclick = () => {
       const s = active.find((x) => x.id == b.dataset.svc);
       const line = cart.find((l) => l.service_id === s.id && !l.note);
@@ -472,19 +487,20 @@ views.newOrder = async (_, query) => {
       update();
     }));
   };
+  const pieces = () => tn(cart.reduce((a, l) => a + l.qty, 0), '{n} piece', '{n} pieces');
   const renderCart = () => {
     const box = $('#cart');
-    $('#pcs').textContent = plural(cart.reduce((a, l) => a + l.qty, 0), 'piece');
+    $('#pcs').textContent = pieces();
     if (!cart.length) {
-      box.innerHTML = `<div class="empty-state" style="padding:20px 10px">${icon('shirt')}<h3>No items yet</h3><p class="small">Tap a service to add it.</p></div>`;
+      box.innerHTML = `<div class="empty-state" style="padding:20px 10px">${icon('shirt')}<h3>${t('No items yet')}</h3><p class="small">${t('Tap a service to add it.')}</p></div>`;
       return;
     }
     box.innerHTML = cart.map((l) => `<div class="cart-item" data-key="${l.key}">
       <div class="name-line">${esc(l.name)}</div><div class="strong num">${money(l.qty * l.price_cents)}</div>
       <div class="controls">
-        <div class="stepper"><button type="button" data-dec aria-label="Fewer">${icon('minus', 'sm')}</button><span>${l.qty}</span><button type="button" data-inc aria-label="More">${icon('plus', 'sm')}</button></div>
-        <input class="note" placeholder="Color, brand, stain…" value="${esc(l.note)}">
-        <div class="money-input"><input class="price" inputmode="decimal" value="${dollars(l.price_cents)}" aria-label="Price each"></div>
+        <div class="stepper"><button type="button" data-dec aria-label="${esc(t('Fewer'))}">${icon('minus', 'sm')}</button><span>${l.qty}</span><button type="button" data-inc aria-label="${esc(t('More'))}">${icon('plus', 'sm')}</button></div>
+        <input class="note" placeholder="${esc(t('Color, brand, stain…'))}" value="${esc(l.note)}">
+        <div class="money-input"><input class="price" inputmode="decimal" value="${dollars(l.price_cents)}" aria-label="${esc(t('Price each'))}"></div>
       </div></div>`).join('');
     $$('.cart-item', box).forEach((row) => {
       const l = cart.find((x) => x.key == row.dataset.key);
@@ -501,17 +517,17 @@ views.newOrder = async (_, query) => {
     const tax = Math.round((taxable * taxRate) / 100);
     const total = taxable + tax;
     const paid = toCents($('#paid').value);
-    $('#totals').innerHTML = `<div><span>Subtotal</span><span>${money(sub)}</span></div>
-      ${disc ? `<div><span>Discount</span><span>-${money(disc)}</span></div>` : ''}
-      ${taxRate ? `<div><span>Tax (${taxRate}%)</span><span>${money(tax)}</span></div>` : ''}
-      <div class="grand"><span>Total</span><span>${money(total)}</span></div>
-      ${paid ? `<div><span>Balance due</span><span>${money(total - paid)}</span></div>` : ''}`;
+    $('#totals').innerHTML = `<div><span>${t('Subtotal')}</span><span>${money(sub)}</span></div>
+      ${disc ? `<div><span>${t('Discount')}</span><span>-${money(disc)}</span></div>` : ''}
+      ${taxRate ? `<div><span>${t('Tax ({rate}%)', { rate: taxRate })}</span><span>${money(tax)}</span></div>` : ''}
+      <div class="grand"><span>${t('Total')}</span><span>${money(total)}</span></div>
+      ${paid ? `<div><span>${t('Balance due')}</span><span>${money(total - paid)}</span></div>` : ''}`;
     $('#cart-bar').hidden = !cart.length;
     $('#bar-total').textContent = money(total);
-    $('#bar-pcs').textContent = plural(cart.reduce((a, l) => a + l.qty, 0), 'piece');
+    $('#bar-pcs').textContent = pieces();
     const needTicket = paperTickets && !cleanTicket($('#ticket').value);
     $('#save').disabled = !customer || !cart.length || needTicket;
-    $('#save').title = !customer ? 'Choose a customer first' : !cart.length ? 'Add at least one item' : needTicket ? 'Enter the ticket number' : '';
+    $('#save').title = !customer ? t('Choose a customer first') : !cart.length ? t('Add at least one item') : needTicket ? t('Enter the ticket number') : '';
   };
   const update = () => { renderTiles(); renderCart(); renderTotals(); };
 
@@ -528,11 +544,11 @@ views.newOrder = async (_, query) => {
     $('#ticket').oninput = () => { $('#ticket-warn').hidden = true; renderTotals(); };
     // Warn early if this number is still on an unfinished order (ticket books repeat).
     $('#ticket').onchange = async () => {
-      const t = cleanTicket($('#ticket').value);
-      if (!t) return;
-      const clash = (await api('GET', '/orders?status=open&q=' + encodeURIComponent(t))).find((o) => o.ticket === t);
+      const tk = cleanTicket($('#ticket').value);
+      if (!tk) return;
+      const clash = (await api('GET', '/orders?status=open&q=' + encodeURIComponent(tk))).find((o) => o.ticket === tk);
       $('#ticket-warn').hidden = !clash;
-      if (clash) $('#ticket-warn').textContent = `#${t} is already on an active order for ${clash.customer_name}.`;
+      if (clash) $('#ticket-warn').textContent = t('#{ticket} is already on an active order for {name}.', { ticket: tk, name: clash.customer_name });
     };
   }
   $('#bar-go').onclick = () => $('#cart-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -552,94 +568,94 @@ views.newOrder = async (_, query) => {
       discount_cents: toCents($('#discount').value),
       paid_cents: toCents($('#paid').value),
     });
-    toast(`Order #${o.ticket} created`);
+    toast(t('Order #{ticket} created', { ticket: o.ticket }));
     location.hash = `#/orders/${o.id}`;
   });
 
   renderCustomer();
   update();
-  if (query.get('customer')) pick(await api('GET', '/customers/' + query.get('customer')));
+  if (!restore && query.get('customer')) pick(await api('GET', '/customers/' + query.get('customer')));
 };
 
 views.order = async ([id]) => {
   const [o, settings] = await Promise.all([api('GET', '/orders/' + id), api('GET', '/settings')]);
-  setTitle(`Order #${o.ticket}`);
+  setTitle(t('Order #{ticket}', { ticket: o.ticket }));
   const next = NEXT[o.status];
   const steps = ['received', 'cleaning', 'ready', 'picked_up'];
   const at = steps.indexOf(o.status);
   const progress = steps
     .map((s, i) => {
       const cls = i < at || o.status === 'picked_up' ? 'done' : i === at ? 'current' : '';
-      return `${i ? `<div class="bar ${i <= at ? 'done' : ''}"></div>` : ''}<div class="step ${cls}"><div class="dot">${cls === 'done' ? icon('check', 'sm') : i + 1}</div><span class="label">${STATUS_LABEL[s]}</span></div>`;
+      return `${i ? `<div class="bar ${i <= at ? 'done' : ''}"></div>` : ''}<div class="step ${cls}"><div class="dot">${cls === 'done' ? icon('check', 'sm') : i + 1}</div><span class="label">${statusLabel(s)}</span></div>`;
     })
     .join('');
 
   app.innerHTML = `
-    <a class="back" href="#/orders">${icon('back', 'sm')}Orders</a>
-    ${pageHead(`Order #${esc(o.ticket)} ${pill(o.status)}`,
-      `${esc(o.customer_name)} · dropped off ${dateTime(o.created_at)}`,
-      `<button class="btn" id="print">${icon('printer')}Print ticket</button>
-       ${next ? `<button class="btn btn-primary btn-lg" data-advance="${o.id}" data-status="${next[0]}">${icon(next[0] === 'picked_up' ? 'check' : next[0] === 'ready' ? 'bell' : 'sparkle')}${next[1]}</button>` : ''}`)}
+    <a class="back" href="#/orders">${icon('back', 'sm')}${t('Orders')}</a>
+    ${pageHead(`${t('Order #{ticket}', { ticket: esc(o.ticket) })} ${pill(o.status)}`,
+      t('{name} · dropped off {date}', { name: esc(o.customer_name), date: dateTime(o.created_at) }),
+      `<button class="btn" id="print">${icon('printer')}${t('Print ticket')}</button>
+       ${next ? `<button class="btn btn-primary btn-lg" data-advance="${o.id}" data-status="${next[0]}">${icon(next[0] === 'picked_up' ? 'check' : next[0] === 'ready' ? 'bell' : 'sparkle')}${t(next[1])}</button>` : ''}`)}
     <div class="card card-body" style="margin-bottom:20px">
-      ${o.status === 'cancelled' ? `<div class="callout">${icon('alert', 'sm')}This order was cancelled.</div>` : `<div class="progress">${progress}</div>`}
+      ${o.status === 'cancelled' ? `<div class="callout">${icon('alert', 'sm')}${t('This order was cancelled.')}</div>` : `<div class="progress">${progress}</div>`}
     </div>
     <div class="grid sidebar-right">
       <div class="stack">
         <div class="card">
-          <div class="card-head">${icon('shirt')}<h2>Items</h2><span class="spacer"></span><span class="hint">${plural(o.piece_count, 'piece')}</span></div>
-          <table class="items-table"><thead><tr><th>Item</th><th class="num">Qty</th><th class="num hide-md">Each</th><th class="num">Total</th></tr></thead>
+          <div class="card-head">${icon('shirt')}<h2>${t('Items')}</h2><span class="spacer"></span><span class="hint">${tn(o.piece_count, '{n} piece', '{n} pieces')}</span></div>
+          <table class="items-table"><thead><tr><th>${t('Item')}</th><th class="num">${t('Qty')}</th><th class="num hide-md">${t('Each')}</th><th class="num">${t('Total')}</th></tr></thead>
             <tbody>${o.items.map((i) => `<tr><td>${esc(i.description)}</td><td class="num">${i.qty}</td><td class="num hide-md">${money(i.price_cents)}</td><td class="num">${money(i.qty * i.price_cents)}</td></tr>`).join('')}</tbody></table>
           <div class="card-body">
             <div class="totals" style="max-width:320px;margin-left:auto">
-              <div><span>Subtotal</span><span>${money(o.subtotal_cents)}</span></div>
-              ${o.discount_cents ? `<div><span>Discount</span><span>-${money(o.discount_cents)}</span></div>` : ''}
-              ${o.tax_cents ? `<div><span>Tax (${o.tax_rate}%)</span><span>${money(o.tax_cents)}</span></div>` : ''}
-              <div class="grand"><span>Total</span><span>${money(o.total_cents)}</span></div>
-              <div><span>Paid</span><span>${money(o.paid_cents)}</span></div>
-              <div class="strong" style="color:var(--text)"><span>Balance</span><span class="${o.balance_cents > 0 ? 'danger-text' : ''}">${money(o.balance_cents)}</span></div>
+              <div><span>${t('Subtotal')}</span><span>${money(o.subtotal_cents)}</span></div>
+              ${o.discount_cents ? `<div><span>${t('Discount')}</span><span>-${money(o.discount_cents)}</span></div>` : ''}
+              ${o.tax_cents ? `<div><span>${t('Tax ({rate}%)', { rate: o.tax_rate })}</span><span>${money(o.tax_cents)}</span></div>` : ''}
+              <div class="grand"><span>${t('Total')}</span><span>${money(o.total_cents)}</span></div>
+              <div><span>${t('Amount paid')}</span><span>${money(o.paid_cents)}</span></div>
+              <div class="strong" style="color:var(--text)"><span>${t('Balance')}</span><span class="${o.balance_cents > 0 ? 'danger-text' : ''}">${money(o.balance_cents)}</span></div>
             </div>
           </div>
           <div class="save-bar" style="justify-content:space-between;align-items:center">
             ${o.balance_cents > 0
-              ? `<span class="small muted">Take a payment</span><div class="row tight"><div class="money-input" style="width:120px"><input id="pay-amt" inputmode="decimal" value="${dollars(o.balance_cents)}"></div><button class="btn btn-primary" id="pay">${icon('dollar', 'sm')}Record payment</button></div>`
-              : `<span class="pill ready">Paid in full</span><button class="btn btn-sm btn-ghost" id="refund">Adjust payment</button>`}
+              ? `<span class="small muted">${t('Take a payment')}</span><div class="row tight"><div class="money-input" style="width:120px"><input id="pay-amt" inputmode="decimal" value="${dollars(o.balance_cents)}"></div><button class="btn btn-primary" id="pay">${icon('dollar', 'sm')}${t('Record payment')}</button></div>`
+              : `<span class="pill ready">${t('Paid in full')}</span><button class="btn btn-sm btn-ghost" id="refund">${t('Adjust payment')}</button>`}
           </div>
         </div>
         <div class="card">
-          <div class="card-head">${icon('message')}<h2>Customer updates</h2><span class="spacer"></span>
-            <button class="btn btn-sm" data-notify="ready">${icon('bell', 'sm')}Send “ready”</button>
-            <button class="btn btn-sm" data-notify="reminder">${icon('clock', 'sm')}Send reminder</button></div>
-          ${timeline(o.messages, { empty: emptyState('message', 'No updates sent yet', settings.auto_notify_ready === '1' ? 'The customer is notified automatically when you mark this order ready.' : 'Use the buttons above to notify the customer.') })}
+          <div class="card-head">${icon('message')}<h2>${t('Customer updates')}</h2><span class="spacer"></span>
+            <button class="btn btn-sm" data-notify="ready">${icon('bell', 'sm')}${t('Send “ready”')}</button>
+            <button class="btn btn-sm" data-notify="reminder">${icon('clock', 'sm')}${t('Send reminder')}</button></div>
+          ${timeline(o.messages, { empty: emptyState('message', t('No updates sent yet'), settings.auto_notify_ready === '1' ? t('The customer is notified automatically when you mark this order ready.') : t('Use the buttons above to notify the customer.')) })}
         </div>
       </div>
       <div class="stack">
         <div class="card">
-          <div class="card-head">${icon('user')}<h2>Customer</h2></div>
+          <div class="card-head">${icon('user')}<h2>${t('Customer')}</h2></div>
           <div class="card-body stack sm">
-            <a class="who-cell" href="#/customers/${o.customer_id}" style="color:inherit">${avatar(o.customer_name)}<div><div class="name-line">${esc(o.customer_name)}</div><div class="sub-line">View profile</div></div></a>
+            <a class="who-cell" href="#/customers/${o.customer_id}" style="color:inherit">${avatar(o.customer_name)}<div><div class="name-line">${esc(o.customer_name)}</div><div class="sub-line">${t('View profile')}</div></div></a>
             ${o.customer_phone ? `<div class="row tight small">${icon('phone', 'sm')}<a href="tel:${esc(o.customer_phone)}">${esc(o.customer_phone)}</a></div>` : ''}
             ${o.customer_email ? `<div class="row tight small">${icon('mail', 'sm')}<span>${esc(o.customer_email)}</span></div>` : ''}
             ${o.customer_preferences ? `<div class="callout info">${icon('sparkle', 'sm')}<span>${esc(o.customer_preferences)}</span></div>` : ''}
           </div>
         </div>
         <div class="card">
-          <div class="card-head">${icon('edit')}<h2>Details</h2></div>
+          <div class="card-head">${icon('edit')}<h2>${t('Details')}</h2></div>
           <div class="card-body stack">
-            <label class="field">Ticket number<input id="ticket" value="${esc(o.ticket)}" maxlength="21"></label>
-            <label class="field">Due date<input id="due" type="date" value="${esc(o.due_date)}"></label>
-            <label class="field">Rack / bin<input id="rack" value="${esc(o.rack)}" placeholder="e.g. A-12"></label>
-            <label class="field">Notes<textarea id="notes" placeholder="Stains, damage, special instructions">${esc(o.notes)}</textarea></label>
+            <label class="field">${t('Ticket number')}<input id="ticket" value="${esc(o.ticket)}" maxlength="21"></label>
+            <label class="field">${t('Due date')}<input id="due" type="date" value="${esc(o.due_date)}"></label>
+            <label class="field">${t('Rack / bin')}<input id="rack" value="${esc(o.rack)}" placeholder="${esc(t('e.g. A-12'))}"></label>
+            <label class="field">${t('Notes')}<textarea id="notes" placeholder="${esc(t('Stains, damage, special instructions'))}">${esc(o.notes)}</textarea></label>
             ${o.ready_at || o.picked_up_at || o.reminder_count ? `<dl class="kv small">
-              ${o.ready_at ? `<dt>Ready</dt><dd>${dateTime(o.ready_at)}</dd>` : ''}
-              ${o.picked_up_at ? `<dt>Picked up</dt><dd>${dateTime(o.picked_up_at)}</dd>` : ''}
-              ${o.reminder_count ? `<dt>Reminders</dt><dd>${o.reminder_count} sent, last ${dateTime(o.last_reminder_at)}</dd>` : ''}</dl>` : ''}
+              ${o.ready_at ? `<dt>${t('Ready')}</dt><dd>${dateTime(o.ready_at)}</dd>` : ''}
+              ${o.picked_up_at ? `<dt>${t('Picked up')}</dt><dd>${dateTime(o.picked_up_at)}</dd>` : ''}
+              ${o.reminder_count ? `<dt>${t('Reminders')}</dt><dd>${t('{n} sent, last {date}', { n: o.reminder_count, date: dateTime(o.last_reminder_at) })}</dd>` : ''}</dl>` : ''}
           </div>
-          <div class="save-bar"><button class="btn" id="save-details">Save details</button></div>
+          <div class="save-bar"><button class="btn" id="save-details">${t('Save details')}</button></div>
         </div>
         <div class="card card-body stack sm">
-          <label class="field">Change status
-            <div class="row tight"><select id="status-sel" style="flex:1">${Object.entries(STATUS_LABEL).map(([k, l]) => `<option value="${k}" ${k === o.status ? 'selected' : ''}>${l}</option>`).join('')}</select>
-            <button class="btn" id="set-status">Update</button></div></label>
+          <label class="field">${t('Change status')}
+            <div class="row tight"><select id="status-sel" style="flex:1">${Object.keys(STATUS_LABEL).map((k) => `<option value="${k}" ${k === o.status ? 'selected' : ''}>${esc(statusLabel(k))}</option>`).join('')}</select>
+            <button class="btn" id="set-status">${t('Update')}</button></div></label>
         </div>
       </div>
     </div>
@@ -648,21 +664,21 @@ views.order = async ([id]) => {
       <div style="text-align:center">${esc(settings.business_phone)}</div>
       <div class="big">#${esc(o.ticket)}</div>
       <div>${esc(o.customer_name)} ${esc(o.customer_phone)}</div>
-      <div>In: ${shortDate(o.created_at)} &nbsp; Due: ${esc(o.due_date)}</div>
-      ${o.rack ? `<div>Rack: ${esc(o.rack)}</div>` : ''}
+      <div>${t('In: {date}', { date: shortDate(o.created_at) })} &nbsp; ${t('Due: {date}', { date: esc(o.due_date) })}</div>
+      ${o.rack ? `<div>${t('Rack: {rack}', { rack: esc(o.rack) })}</div>` : ''}
       <hr><table>${o.items.map((i) => `<tr><td>${i.qty} × ${esc(i.description)}</td><td style="text-align:right">${money(i.qty * i.price_cents)}</td></tr>`).join('')}</table><hr>
-      <table><tr><td>Total</td><td style="text-align:right">${money(o.total_cents)}</td></tr>
-      <tr><td>Paid</td><td style="text-align:right">${money(o.paid_cents)}</td></tr>
-      <tr><td><strong>Balance</strong></td><td style="text-align:right"><strong>${money(o.balance_cents)}</strong></td></tr></table>
+      <table><tr><td>${t('Total')}</td><td style="text-align:right">${money(o.total_cents)}</td></tr>
+      <tr><td>${t('Amount paid')}</td><td style="text-align:right">${money(o.paid_cents)}</td></tr>
+      <tr><td><strong>${t('Balance')}</strong></td><td style="text-align:right"><strong>${money(o.balance_cents)}</strong></td></tr></table>
       ${o.notes ? `<p>${esc(o.notes)}</p>` : ''}
     </div>`;
 
   $('#print').onclick = () => window.print();
   $('#set-status').onclick = (e) => busy(e.currentTarget, async () => {
     const status = $('#status-sel').value;
-    if (status === 'cancelled' && !confirm('Cancel this order?')) return;
+    if (status === 'cancelled' && !confirm(t('Cancel this order?'))) return;
     const r = await api('POST', `/orders/${id}/status`, { status });
-    messageToast(r.messages, `Marked ${STATUS_LABEL[status].toLowerCase()}`);
+    messageToast(r.messages, t(MARKED[status], { ticket: r.order.ticket }));
     route();
   });
   $('#save-details').onclick = (e) => busy(e.currentTarget, async () => {
@@ -670,22 +686,22 @@ views.order = async ([id]) => {
     const ticketChanged = cleanTicket($('#ticket').value) !== o.ticket;
     if (ticketChanged) body.ticket = $('#ticket').value;
     await api('PUT', '/orders/' + id, body);
-    toast('Details saved');
+    toast(t('Details saved'));
     if (ticketChanged) route();
   });
   if ($('#pay')) {
     $('#pay').onclick = (e) => busy(e.currentTarget, async () => {
       await api('POST', `/orders/${id}/payment`, { amount_cents: toCents($('#pay-amt').value) });
-      toast('Payment recorded');
+      toast(t('Payment recorded'));
       route();
     });
   }
   if ($('#refund')) {
     $('#refund').onclick = () => {
-      const m = modal('Adjust payment', `<form class="card-body stack" id="adj">
-        <p class="small muted">Enter a negative amount to record a refund.</p>
-        <label class="field">Amount<div class="money-input"><input name="amt" inputmode="decimal" placeholder="-5.00" required></div></label>
-        <div class="row"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Save</button></div></form>`);
+      const m = modal(t('Adjust payment'), `<form class="card-body stack" id="adj">
+        <p class="small muted">${t('Enter a negative amount to record a refund.')}</p>
+        <label class="field">${t('Amount')}<div class="money-input"><input name="amt" inputmode="decimal" placeholder="-5.00" required></div></label>
+        <div class="row"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-close>${t('Cancel')}</button><button class="btn btn-primary">${t('Save')}</button></div></form>`);
       $('#adj', m.el).onsubmit = (e) => {
         e.preventDefault();
         busy(e.submitter, async () => {
@@ -703,49 +719,49 @@ views.order = async ([id]) => {
 };
 
 views.customers = async (_, query) => {
-  setTitle('Customers');
+  setTitle(t('Customers'));
   const q = query.get('q') || '';
   const list = await api('GET', '/customers?q=' + encodeURIComponent(q));
   app.innerHTML = `
-    ${pageHead('Customers', 'Everyone who has dropped off with you.', `<button class="btn btn-primary" id="add">${icon('plus')}Add customer</button>`)}
-    <form class="search" id="sf" style="margin-bottom:16px;max-width:420px">${icon('search')}<input id="q" value="${esc(q)}" placeholder="Search name, phone or email"></form>
+    ${pageHead(t('Customers'), t('Everyone who has dropped off with you.'), `<button class="btn btn-primary" id="add">${icon('plus')}${t('Add customer')}</button>`)}
+    <form class="search" id="sf" style="margin-bottom:16px;max-width:420px">${icon('search')}<input id="q" value="${esc(q)}" placeholder="${esc(t('Search name, phone or email'))}"></form>
     <div class="card">${
       list.length
-        ? `<div class="list"><div class="list-row customer-row list-head hide-md"><div>Name</div><div>Phone</div><div>Email</div><div>Orders</div><div></div></div>
+        ? `<div class="list"><div class="list-row customer-row list-head hide-md"><div>${t('Name')}</div><div>${t('Phone')}</div><div>${t('Email')}</div><div>${t('Orders')}</div><div></div></div>
           ${list.map((c) => `<div class="list-row customer-row click" data-href="#/customers/${c.id}">
-            <div class="who-cell">${avatar(c.name)}<div><div class="name-line">${esc(c.name)}</div><div class="sub-line">${esc(c.preferences || (c.last_order_at ? 'Last visit ' + shortDate(c.last_order_at) : 'No orders yet'))}</div></div></div>
+            <div class="who-cell">${avatar(c.name)}<div><div class="name-line">${esc(c.name)}</div><div class="sub-line">${esc(c.preferences || (c.last_order_at ? t('Last visit {date}', { date: shortDate(c.last_order_at) }) : t('No orders yet')))}</div></div></div>
             <div class="small hide-md">${esc(c.phone || '—')}</div>
             <div class="small hide-md sub-line">${esc(c.email || '—')}</div>
             <div class="small hide-md">${c.order_count}</div>
-            <div class="row-action">${c.open_orders ? `<span class="pill ready plain">${c.open_orders} active</span>` : ''}</div>
+            <div class="row-action">${c.open_orders ? `<span class="pill ready plain">${t('{n} active', { n: c.open_orders })}</span>` : ''}</div>
           </div>`).join('')}</div>`
         : q
-          ? emptyState('search', 'No matching customers', `Nothing matches “${esc(q)}”.`)
-          : emptyState('users', 'No customers yet', 'Customers are added when you create their first order, or add one now.')
+          ? emptyState('search', t('No matching customers'), t('Nothing matches “{q}”.', { q: esc(q) }))
+          : emptyState('users', t('No customers yet'), t('Customers are added when you create their first order, or add one now.'))
     }</div>`;
-  let t;
+  let timer;
   const go = () => (location.hash = '#/customers' + ($('#q').value.trim() ? '?q=' + encodeURIComponent($('#q').value.trim()) : ''));
-  $('#q').oninput = () => { clearTimeout(t); t = setTimeout(go, 350); };
+  $('#q').oninput = () => { clearTimeout(timer); timer = setTimeout(go, 350); };
   $('#sf').onsubmit = (e) => { e.preventDefault(); go(); };
   if (q) { const i = $('#q'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
   $('#add').onclick = () => customerModal(null);
 };
 
 function customerModal(c) {
-  const m = modal(c ? 'Edit customer' : 'Add customer', `<form class="card-body stack" id="cf">
-    <label class="field">Name<input name="name" value="${esc(c?.name)}" required></label>
+  const m = modal(c ? t('Edit customer') : t('Add customer'), `<form class="card-body stack" id="cf">
+    <label class="field">${t('Name')}<input name="name" value="${esc(c?.name)}" required></label>
     <div class="form" style="grid-template-columns:1fr 1fr">
-      <label class="field">Mobile phone<input name="phone" type="tel" value="${esc(c?.phone)}"></label>
-      <label class="field">Email<input name="email" type="email" value="${esc(c?.email)}"></label>
+      <label class="field">${t('Mobile phone')}<input name="phone" type="tel" value="${esc(c?.phone)}"></label>
+      <label class="field">${t('Email')}<input name="email" type="email" value="${esc(c?.email)}"></label>
     </div>
-    <label class="field">Preferences<input name="preferences" value="${esc(c?.preferences)}" placeholder="e.g. no starch, boxed shirts"></label>
-    <label class="field">Notes<textarea name="notes" rows="2">${esc(c?.notes)}</textarea></label>
+    <label class="field">${t('Preferences')}<input name="preferences" value="${esc(c?.preferences)}" placeholder="${esc(t('e.g. no starch, boxed shirts'))}"></label>
+    <label class="field">${t('Notes')}<textarea name="notes" rows="2">${esc(c?.notes)}</textarea></label>
     <div class="stack sm">
-      <label class="check"><input type="checkbox" name="sms_opt_in" ${!c || c.sms_opt_in ? 'checked' : ''}><span>Text message updates<small>Order ready notices and pickup reminders by text</small></span></label>
-      <label class="check"><input type="checkbox" name="email_opt_in" ${!c || c.email_opt_in ? 'checked' : ''}><span>Email updates<small>The same notices by email</small></span></label>
+      <label class="check"><input type="checkbox" name="sms_opt_in" ${!c || c.sms_opt_in ? 'checked' : ''}><span>${t('Text message updates')}<small>${t('Order ready notices and pickup reminders by text')}</small></span></label>
+      <label class="check"><input type="checkbox" name="email_opt_in" ${!c || c.email_opt_in ? 'checked' : ''}><span>${t('Email updates')}<small>${t('The same notices by email')}</small></span></label>
     </div>
-    <div class="row">${c ? `<button type="button" class="btn btn-danger" id="del">${icon('trash', 'sm')}Delete</button>` : ''}<span class="spacer"></span>
-      <button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">${c ? 'Save changes' : 'Add customer'}</button></div>
+    <div class="row">${c ? `<button type="button" class="btn btn-danger" id="del">${icon('trash', 'sm')}${t('Delete')}</button>` : ''}<span class="spacer"></span>
+      <button type="button" class="btn btn-ghost" data-close>${t('Cancel')}</button><button class="btn btn-primary">${c ? t('Save changes') : t('Add customer')}</button></div>
   </form>`);
   const form = $('#cf', m.el);
   form.onsubmit = (e) => {
@@ -756,18 +772,18 @@ function customerModal(c) {
     busy(e.submitter, async () => {
       const saved = c ? await api('PUT', '/customers/' + c.id, body) : await api('POST', '/customers', body);
       m.close();
-      toast(c ? 'Customer saved' : 'Customer added');
+      toast(c ? t('Customer saved') : t('Customer added'));
       if (c) route();
       else location.hash = '#/customers/' + saved.id;
     });
   };
   if (c) {
     $('#del', m.el).onclick = (e) => {
-      if (!confirm(`Delete ${c.name}? This can't be undone.`)) return;
+      if (!confirm(t('Delete {name}? This can’t be undone.', { name: c.name }))) return;
       busy(e.currentTarget, async () => {
         await api('DELETE', '/customers/' + c.id);
         m.close();
-        toast('Customer deleted');
+        toast(t('Customer deleted'));
         location.hash = '#/customers';
       });
     };
@@ -779,47 +795,48 @@ views.customer = async ([id]) => {
   setTitle(c.name);
   const open = c.orders.filter((o) => ['received', 'cleaning', 'ready'].includes(o.status)).length;
   const stat = (tone, ic, label, value) => `<div class="stat"><div class="stat-icon tone-${tone}">${icon(ic)}</div><div><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div></div>`;
-  const on = (v) => (v ? '<span class="pill ready plain">On</span>' : '<span class="pill cancelled plain">Off</span>');
+  const on = (v) => (v ? `<span class="pill ready plain">${t('On')}</span>` : `<span class="pill cancelled plain">${t('Off')}</span>`);
+  const first = esc(c.name.split(' ')[0]);
 
   app.innerHTML = `
-    <a class="back" href="#/customers">${icon('back', 'sm')}Customers</a>
+    <a class="back" href="#/customers">${icon('back', 'sm')}${t('Customers')}</a>
     <div class="page-head"><div class="who-cell">${avatar(c.name, 'lg')}<div><h1>${esc(c.name)}</h1>
-      <p class="sub">${esc([c.phone, c.email].filter(Boolean).join(' · ') || 'No contact details')}</p></div></div>
-      <div class="actions"><button class="btn" id="edit">${icon('edit', 'sm')}Edit</button>
-        <a class="btn btn-primary" href="#/orders/new?customer=${c.id}">${icon('plus')}New order</a></div></div>
+      <p class="sub">${esc([c.phone, c.email].filter(Boolean).join(' · ') || t('No contact details'))}</p></div></div>
+      <div class="actions"><button class="btn" id="edit">${icon('edit', 'sm')}${t('Edit')}</button>
+        <a class="btn btn-primary" href="#/orders/new?customer=${c.id}">${icon('plus')}${t('New order')}</a></div></div>
     <div class="stats">
-      ${stat('primary', 'receipt', 'Orders', c.orders.length)}
-      ${stat('ready', 'shirt', 'Active orders', open)}
-      ${stat('cleaning', 'dollar', 'Lifetime spend', money(c.lifetime_value_cents))}
-      ${stat('received', 'clock', 'Customer since', shortDate(c.created_at))}
+      ${stat('primary', 'receipt', t('Orders'), c.orders.length)}
+      ${stat('ready', 'shirt', t('Active orders'), open)}
+      ${stat('cleaning', 'dollar', t('Lifetime spend'), money(c.lifetime_value_cents))}
+      ${stat('received', 'clock', t('Customer since'), shortDate(c.created_at))}
     </div>
     <div class="grid sidebar-right">
       <div class="stack">
-        <div class="card"><div class="card-head">${icon('receipt')}<h2>Orders</h2></div>
-          ${orderList(c.orders, { empty: emptyState('receipt', 'No orders yet', '', `<a class="btn btn-primary" href="#/orders/new?customer=${c.id}">${icon('plus')}Create their first order</a>`) })}</div>
-        <div class="card"><div class="card-head">${icon('message')}<h2>Messages</h2></div>${timeline(c.messages)}</div>
+        <div class="card"><div class="card-head">${icon('receipt')}<h2>${t('Orders')}</h2></div>
+          ${orderList(c.orders, { empty: emptyState('receipt', t('No orders yet'), '', `<a class="btn btn-primary" href="#/orders/new?customer=${c.id}">${icon('plus')}${t('Create their first order')}</a>`) })}</div>
+        <div class="card"><div class="card-head">${icon('message')}<h2>${t('Messages')}</h2></div>${timeline(c.messages)}</div>
       </div>
       <div class="stack">
-        <div class="card"><div class="card-head">${icon('user')}<h2>Profile</h2></div>
+        <div class="card"><div class="card-head">${icon('user')}<h2>${t('Profile')}</h2></div>
           <div class="card-body stack">
             <dl class="kv">
-              <dt>Phone</dt><dd>${c.phone ? `<a href="tel:${esc(c.phone)}">${esc(c.phone)}</a>` : '—'}</dd>
-              <dt>Email</dt><dd>${esc(c.email || '—')}</dd>
-              <dt>Texts</dt><dd>${c.phone ? on(c.sms_opt_in) : '<span class="muted small">No phone number</span>'}</dd>
-              <dt>Emails</dt><dd>${c.email ? on(c.email_opt_in) : '<span class="muted small">No email address</span>'}</dd>
+              <dt>${t('Phone')}</dt><dd>${c.phone ? `<a href="tel:${esc(c.phone)}">${esc(c.phone)}</a>` : '—'}</dd>
+              <dt>${t('Email')}</dt><dd>${esc(c.email || '—')}</dd>
+              <dt>${t('Texts')}</dt><dd>${c.phone ? on(c.sms_opt_in) : `<span class="muted small">${t('No phone number')}</span>`}</dd>
+              <dt>${t('Emails')}</dt><dd>${c.email ? on(c.email_opt_in) : `<span class="muted small">${t('No email address')}</span>`}</dd>
             </dl>
             ${c.preferences ? `<div class="callout info">${icon('sparkle', 'sm')}<span>${esc(c.preferences)}</span></div>` : ''}
             ${c.notes ? `<p class="small" style="white-space:pre-line">${esc(c.notes)}</p>` : ''}
           </div></div>
-        <div class="card"><div class="card-head">${icon('send')}<h2>Send a message</h2></div>
+        <div class="card"><div class="card-head">${icon('send')}<h2>${t('Send a message')}</h2></div>
           <div class="card-body stack sm">
             <div class="chips">
-              <button type="button" class="chip ${c.phone ? 'active' : ''}" data-ch="sms" ${c.phone ? '' : 'disabled title="No phone number"'}>${icon('phone', 'sm')} Text</button>
-              <button type="button" class="chip ${!c.phone && c.email ? 'active' : ''}" data-ch="email" ${c.email ? '' : 'disabled title="No email address"'}>${icon('mail', 'sm')} Email</button>
+              <button type="button" class="chip ${c.phone ? 'active' : ''}" data-ch="sms" ${c.phone ? '' : `disabled title="${esc(t('No phone number'))}"`}>${icon('phone', 'sm')} ${t('Text')}</button>
+              <button type="button" class="chip ${!c.phone && c.email ? 'active' : ''}" data-ch="email" ${c.email ? '' : `disabled title="${esc(t('No email address'))}"`}>${icon('mail', 'sm')} ${t('Email')}</button>
             </div>
-            <input id="subj" placeholder="Email subject">
-            <textarea id="msg" placeholder="Write a message to ${esc(c.name.split(' ')[0])}…"></textarea>
-            <button class="btn btn-primary" id="send">${icon('send', 'sm')}Send</button>
+            <input id="subj" placeholder="${esc(t('Email subject'))}">
+            <textarea id="msg" placeholder="${esc(t('Write a message to {name}…', { name: first }))}"></textarea>
+            <button class="btn btn-primary" id="send">${icon('send', 'sm')}${t('Send')}</button>
           </div></div>
       </div>
     </div>`;
@@ -830,7 +847,7 @@ views.customer = async ([id]) => {
   syncSubject();
   $('#edit').onclick = () => customerModal(c);
   $('#send').onclick = (e) => {
-    if (!chans().length) return toast('Choose text and/or email');
+    if (!chans().length) return toast(t('Choose text and/or email'));
     if (!$('#msg').value.trim()) return $('#msg').focus();
     busy(e.currentTarget, async () => {
       messageToast(await api('POST', `/customers/${id}/message`, { body: $('#msg').value, subject: $('#subj').value, channels: chans() }));
@@ -840,31 +857,31 @@ views.customer = async ([id]) => {
 };
 
 views.services = async () => {
-  setTitle('Price list');
+  setTitle(t('Price list'));
   const list = await api('GET', '/services');
   const owner = isOwner();
   const cats = [...new Set(list.map((s) => s.category))];
   app.innerHTML = `
-    ${pageHead('Price list', owner ? 'Changes save automatically. These appear as buttons when you create an order.' : 'Only the shop owner can change prices.',
-      owner ? `<button class="btn btn-primary" id="add">${icon('plus')}Add service</button>` : '')}
+    ${pageHead(t('Price list'), owner ? t('Changes save automatically. These appear as buttons when you create an order.') : t('Only the shop owner can change prices.'),
+      owner ? `<button class="btn btn-primary" id="add">${icon('plus')}${t('Add service')}</button>` : '')}
     <div class="stack">${
       cats.length
-        ? cats.map((cat) => `<div class="card"><div class="card-head"><h2>${esc(cat)}</h2><span class="spacer"></span><span class="hint">${plural(list.filter((s) => s.category === cat).length, 'service')}</span></div>
+        ? cats.map((cat) => `<div class="card"><div class="card-head"><h2>${esc(cat)}</h2><span class="spacer"></span><span class="hint">${tn(list.filter((s) => s.category === cat).length, '{n} service', '{n} services')}</span></div>
           ${list.filter((s) => s.category === cat).map((s) => `<div class="price-row ${s.active ? '' : 'inactive'}" data-id="${s.id}">
-            <input class="name-input" value="${esc(s.name)}" ${owner ? '' : 'disabled'} aria-label="Service name">
-            <div class="money-input"><input class="price" inputmode="decimal" value="${dollars(s.price_cents)}" ${owner ? '' : 'disabled'} aria-label="Price"></div>
+            <input class="name-input" value="${esc(s.name)}" ${owner ? '' : 'disabled'} aria-label="${esc(t('Service name'))}">
+            <div class="money-input"><input class="price" inputmode="decimal" value="${dollars(s.price_cents)}" ${owner ? '' : 'disabled'} aria-label="${esc(t('Price'))}"></div>
             <div class="row tight">${owner ? `
-              <label class="check small" title="Show when creating orders"><input type="checkbox" class="active" ${s.active ? 'checked' : ''}><span class="hide-md">Active</span></label>
-              <button class="btn btn-ghost btn-icon del" title="Remove" aria-label="Remove">${icon('trash', 'sm')}</button>` : s.active ? '' : '<span class="pill cancelled plain">Hidden</span>'}</div>
+              <label class="check small" title="${esc(t('Show when creating orders'))}"><input type="checkbox" class="active" ${s.active ? 'checked' : ''}><span class="hide-md">${t('Active')}</span></label>
+              <button class="btn btn-ghost btn-icon del" title="${esc(t('Remove'))}" aria-label="${esc(t('Remove'))}">${icon('trash', 'sm')}</button>` : s.active ? '' : `<span class="pill cancelled plain">${t('Hidden')}</span>`}</div>
           </div>`).join('')}</div>`).join('')
-        : `<div class="card">${emptyState('tag', 'Your price list is empty', 'Add the services you offer and their prices.')}</div>`
+        : `<div class="card">${emptyState('tag', t('Your price list is empty'), t('Add the services you offer and their prices.'))}</div>`
     }</div>`;
 
   if (!owner) return;
   const save = async (row, body) => {
     try {
       await api('PUT', '/services/' + row.dataset.id, body);
-      toast('Saved');
+      toast(t('Saved'));
     } catch (e) { toast(e.message); }
   };
   $$('.price-row').forEach((row) => {
@@ -872,28 +889,28 @@ views.services = async () => {
     $('.price', row).onchange = (e) => { e.target.value = dollars(toCents(e.target.value)); save(row, { price_cents: toCents(e.target.value) }); };
     $('.active', row).onchange = (e) => { row.classList.toggle('inactive', !e.target.checked); save(row, { active: e.target.checked }); };
     $('.del', row).onclick = async () => {
-      if (!confirm('Remove this service?')) return;
+      if (!confirm(t('Remove this service?'))) return;
       const r = await api('DELETE', '/services/' + row.dataset.id);
-      toast(r.deactivated ? 'Used on past orders, so it was hidden instead' : 'Removed');
+      toast(r.deactivated ? t('Used on past orders, so it was hidden instead') : t('Removed'));
       route();
     };
   });
   $('#add').onclick = () => {
-    const m = modal('Add service', `<form class="card-body stack" id="sf">
-      <label class="field">Service name<input name="name" required placeholder="e.g. Silk blouse"></label>
+    const m = modal(t('Add service'), `<form class="card-body stack" id="sf">
+      <label class="field">${t('Service name')}<input name="name" required placeholder="${esc(t('e.g. Silk blouse'))}"></label>
       <div class="form" style="grid-template-columns:1fr 1fr">
-        <label class="field">Category<input name="category" list="cat-list" value="${esc(cats[0] || 'Dry Clean')}" required>
+        <label class="field">${t('Category')}<input name="category" list="cat-list" value="${esc(cats[0] || 'Dry Clean')}" required>
           <datalist id="cat-list">${cats.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></label>
-        <label class="field">Price<div class="money-input"><input name="price" inputmode="decimal" placeholder="0.00" required></div></label>
+        <label class="field">${t('Price')}<div class="money-input"><input name="price" inputmode="decimal" placeholder="0.00" required></div></label>
       </div>
-      <div class="row"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Add service</button></div></form>`);
+      <div class="row"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-close>${t('Cancel')}</button><button class="btn btn-primary">${t('Add service')}</button></div></form>`);
     $('#sf', m.el).onsubmit = (e) => {
       e.preventDefault();
       const f = e.target;
       busy(e.submitter, async () => {
         await api('POST', '/services', { name: f.name.value, category: f.category.value, price_cents: toCents(f.price.value) });
         m.close();
-        toast('Service added');
+        toast(t('Service added'));
         route();
       });
     };
@@ -901,33 +918,35 @@ views.services = async () => {
 };
 
 views.messages = async (_, query) => {
-  setTitle('Messages');
+  setTitle(t('Messages'));
   const filter = query.get('show') || '';
   const [list, settings] = await Promise.all([
     api('GET', '/messages' + (filter === 'sms' || filter === 'email' ? '?channel=' + filter : '')),
     api('GET', '/settings'),
   ]);
   const shown = filter === 'replies' ? list.filter((m) => m.direction === 'in') : list;
-  const notConnected = [settings.channels.sms === 'log' && 'texts', settings.channels.email === 'log' && 'emails'].filter(Boolean);
+  const smsOff = settings.channels.sms === 'log';
+  const emailOff = settings.channels.email === 'log';
+  const what = smsOff && emailOff ? t('texts and emails') : smsOff ? t('texts') : t('emails');
   app.innerHTML = `
-    ${pageHead('Messages', 'Every text and email sent to customers, and their replies.')}
-    ${notConnected.length ? `<div class="callout warn" style="margin-bottom:16px">${icon('alert', 'sm')}<span>Sending ${notConnected.join(' and ')} isn't connected yet, so those messages are saved here but not delivered.${isOwner() ? ' <a href="#/settings?tab=notifications">See notification settings</a>.' : ''}</span></div>` : ''}
-    <div class="tabs" style="margin-bottom:16px">${[['', 'All'], ['sms', 'Texts'], ['email', 'Emails'], ['replies', 'Replies']]
+    ${pageHead(t('Messages'), t('Every text and email sent to customers, and their replies.'))}
+    ${smsOff || emailOff ? `<div class="callout warn" style="margin-bottom:16px">${icon('alert', 'sm')}<span>${t('Sending {what} isn’t connected yet, so those messages are saved here but not delivered.', { what })}${isOwner() ? ` <a href="#/settings?tab=notifications">${t('See notification settings.')}</a>` : ''}</span></div>` : ''}
+    <div class="tabs" style="margin-bottom:16px">${[['', t('All')], ['sms', t('Texts')], ['email', t('Emails')], ['replies', t('Replies')]]
       .map(([k, l]) => `<button data-show="${k}" class="${k === filter ? 'active' : ''}">${l}</button>`).join('')}</div>
-    <div class="card">${timeline(shown, { showCustomer: true, empty: emptyState('message', 'No messages yet', 'Messages appear here when you mark orders ready or send reminders.') })}</div>`;
+    <div class="card">${timeline(shown, { showCustomer: true, empty: emptyState('message', t('No messages yet'), t('Messages appear here when you mark orders ready or send reminders.')) })}</div>`;
   $$('[data-show]').forEach((b) => (b.onclick = () => (location.hash = '#/messages' + (b.dataset.show ? '?show=' + b.dataset.show : ''))));
 };
 
 const PROVIDER_LABEL = { twilio: 'Twilio', resend: 'Resend', sendgrid: 'SendGrid', postmark: 'Postmark' };
 const SETTINGS_TABS = [
-  ['business', 'store', 'Business'],
-  ['notifications', 'bell', 'Notifications'],
-  ['wording', 'edit', 'Message wording'],
-  ['team', 'users', 'Team'],
-  ['account', 'lock', 'My account'],
+  ['business', 'store', N_('Business')],
+  ['notifications', 'bell', N_('Notifications')],
+  ['wording', 'edit', N_('Message wording')],
+  ['team', 'users', N_('Team')],
+  ['account', 'lock', N_('My account')],
 ];
 views.settings = async (_, query) => {
-  setTitle('Settings');
+  setTitle(t('Settings'));
   const tab = SETTINGS_TABS.some(([k]) => k === query.get('tab')) ? query.get('tab') : 'business';
   const [s, team] = await Promise.all([api('GET', '/settings'), api('GET', '/team')]);
   const owner = isOwner();
@@ -937,77 +956,78 @@ views.settings = async (_, query) => {
   const area = (name, label, rows = 3) => `<label class="field full">${label}<textarea name="${name}" rows="${rows}" ${ro}>${esc(s[name])}</textarea></label>`;
   const check = (name, label, help) =>
     `<label class="check"><input name="${name}" type="checkbox" ${s[name] === '1' ? 'checked' : ''} ${ro}><span>${label}<small>${help}</small></span></label>`;
-  const saveBar = owner ? `<div class="save-bar"><button class="btn btn-primary" data-save>Save changes</button></div>` : '';
-  const conn = (mode, label, what) => `<div class="status-line ${mode !== 'log' ? 'on' : ''}"><span class="dot"></span>
-    <div style="flex:1"><div class="strong">${label}</div><div class="small muted">${mode !== 'log' ? `Connected via ${esc(PROVIDER_LABEL[mode] || mode)}` : `Not connected yet. ${what} are saved in Messages but not delivered.`}</div></div></div>`;
+  const saveBar = owner ? `<div class="save-bar"><button class="btn btn-primary" data-save>${t('Save changes')}</button></div>` : '';
+  const conn = (mode, label, notConnected) => `<div class="status-line ${mode !== 'log' ? 'on' : ''}"><span class="dot"></span>
+    <div style="flex:1"><div class="strong">${label}</div><div class="small muted">${mode !== 'log' ? t('Connected via {provider}', { provider: esc(PROVIDER_LABEL[mode] || mode) }) : notConnected}</div></div></div>`;
 
   const panes = {
-    business: `<div class="card"><div class="card-head"><h2>Business details</h2><span class="hint">Shown on tickets, texts and emails</span></div>
+    business: `<div class="card"><div class="card-head"><h2>${t('Business details')}</h2><span class="hint">${t('Shown on tickets, texts and emails')}</span></div>
       <div class="card-body form">
-        ${field('business_name', 'Business name')}
-        ${field('business_phone', 'Phone')}
-        ${field('business_email', 'Email', 'type="email"', 'Customer email replies go here')}
-        ${field('business_address', 'Address')}
-        ${field('tax_rate', 'Sales tax (%)', 'inputmode="decimal"')}
-        ${field('default_turnaround_days', 'Usual turnaround (days)', 'type="number" min="0"', 'Sets the default due date on new orders')}
-        <label class="field">Ticket numbers<select name="ticket_mode" ${ro}>
-          <option value="manual" ${s.ticket_mode === 'manual' ? 'selected' : ''}>Use my paper ticket numbers</option>
-          <option value="auto" ${s.ticket_mode !== 'manual' ? 'selected' : ''}>Number orders automatically</option></select>
-          <span class="help">With paper tickets, staff type the number when writing up an order</span></label>
+        ${field('business_name', t('Business name'))}
+        ${field('business_phone', t('Phone'))}
+        ${field('business_email', t('Email'), 'type="email"', t('Customer email replies go here'))}
+        ${field('business_address', t('Address'))}
+        ${field('tax_rate', t('Sales tax (%)'), 'inputmode="decimal"')}
+        ${field('default_turnaround_days', t('Usual turnaround (days)'), 'type="number" min="0"', t('Sets the default due date on new orders'))}
+        <label class="field">${t('Ticket numbers')}<select name="ticket_mode" ${ro}>
+          <option value="manual" ${s.ticket_mode === 'manual' ? 'selected' : ''}>${t('Use my paper ticket numbers')}</option>
+          <option value="auto" ${s.ticket_mode !== 'manual' ? 'selected' : ''}>${t('Number orders automatically')}</option></select>
+          <span class="help">${t('With paper tickets, staff type the number when writing up an order')}</span></label>
       </div>${saveBar}</div>`,
     notifications: `<div class="stack">
-      <div class="card"><div class="card-head"><h2>Connections</h2></div><div class="card-body stack sm">
-        ${conn(s.channels.sms, 'Text messages', 'Texts')}${conn(s.channels.email, 'Email', 'Emails')}</div></div>
-      <div class="card"><div class="card-head"><h2>When to notify customers</h2></div>
+      <div class="card"><div class="card-head"><h2>${t('Connections')}</h2></div><div class="card-body stack sm">
+        ${conn(s.channels.sms, t('Text messages'), t('Not connected yet. Texts are saved in Messages but not delivered.'))}
+        ${conn(s.channels.email, t('Email'), t('Not connected yet. Emails are saved in Messages but not delivered.'))}</div></div>
+      <div class="card"><div class="card-head"><h2>${t('When to notify customers')}</h2></div>
         <div class="card-body stack">
-          ${check('auto_notify_ready', 'Notify customers when their order is ready', 'Sent the moment you mark an order Ready')}
-          ${check('notify_sms', 'Send text messages', 'To customers with a mobile number')}
-          ${check('notify_email', 'Send emails', 'To customers with an email address')}
+          ${check('auto_notify_ready', t('Notify customers when their order is ready'), t('Sent the moment you mark an order Ready'))}
+          ${check('notify_sms', t('Send text messages'), t('To customers with a mobile number'))}
+          ${check('notify_email', t('Send emails'), t('To customers with an email address'))}
           <div class="form" style="border-top:1px solid var(--border);padding-top:16px">
-            ${field('reminder_after_days', 'First pickup reminder after', 'type="number" min="0"', 'Days after the order is ready')}
-            ${field('reminder_interval_days', 'Then remind every', 'type="number" min="1"', 'Days between reminders')}
-            ${field('max_reminders', 'Stop after', 'type="number" min="0"', 'Reminders per order (0 turns them off)')}
+            ${field('reminder_after_days', t('First pickup reminder after'), 'type="number" min="0"', t('Days after the order is ready'))}
+            ${field('reminder_interval_days', t('Then remind every'), 'type="number" min="1"', t('Days between reminders'))}
+            ${field('max_reminders', t('Stop after'), 'type="number" min="0"', t('Reminders per order (0 turns them off)'))}
           </div>
         </div>${saveBar}</div>
-      ${owner ? `<div class="card"><div class="card-head"><h2>Send yourself a test</h2></div>
+      ${owner ? `<div class="card"><div class="card-head"><h2>${t('Send yourself a test')}</h2></div>
         <div class="card-body stack sm">
-          <div class="row"><input id="test-phone" type="tel" placeholder="Your mobile number" style="flex:1;min-width:180px"><button class="btn" data-test="sms">${icon('phone', 'sm')}Send test text</button></div>
-          <div class="row"><input id="test-email" type="email" placeholder="Your email address" style="flex:1;min-width:180px"><button class="btn" data-test="email">${icon('mail', 'sm')}Send test email</button></div>
+          <div class="row"><input id="test-phone" type="tel" placeholder="${esc(t('Your mobile number'))}" style="flex:1;min-width:180px"><button class="btn" data-test="sms">${icon('phone', 'sm')}${t('Send test text')}</button></div>
+          <div class="row"><input id="test-email" type="email" placeholder="${esc(t('Your email address'))}" style="flex:1;min-width:180px"><button class="btn" data-test="email">${icon('mail', 'sm')}${t('Send test email')}</button></div>
         </div></div>` : ''}
     </div>`,
-    wording: `<div class="card"><div class="card-head"><h2>Message wording</h2></div>
+    wording: `<div class="card"><div class="card-head"><h2>${t('Message wording')}</h2></div>
       <div class="card-body stack">
-        <div class="stack sm"><span class="small muted">Use these to fill in details automatically:</span>
+        <div class="stack sm"><span class="small muted">${t('Use these to fill in details automatically:')}</span>
           <div class="placeholder-list">${['name', 'ticket', 'business', 'balance', 'total', 'pieces', 'ready_date', 'due_date', 'phone', 'address'].map((p) => `<code>{${p}}</code>`).join('')}</div></div>
         <div class="form">
-          ${area('sms_template_ready', 'Text — order ready', 3)}
-          ${area('sms_template_reminder', 'Text — pickup reminder', 3)}
-          <p class="small muted full">Texts end with “Reply STOP to opt out.” automatically.</p>
-          ${field('email_subject_ready', 'Email subject — order ready')}
-          ${field('email_subject_reminder', 'Email subject — pickup reminder')}
-          ${area('email_body_ready', 'Email — order ready', 8)}
-          ${area('email_body_reminder', 'Email — pickup reminder', 8)}
+          ${area('sms_template_ready', t('Text — order ready'), 3)}
+          ${area('sms_template_reminder', t('Text — pickup reminder'), 3)}
+          <p class="small muted full">${t('Texts end with “Reply STOP to opt out.” automatically.')}</p>
+          ${field('email_subject_ready', t('Email subject — order ready'))}
+          ${field('email_subject_reminder', t('Email subject — pickup reminder'))}
+          ${area('email_body_ready', t('Email — order ready'), 8)}
+          ${area('email_body_reminder', t('Email — pickup reminder'), 8)}
         </div>
       </div>${saveBar}</div>`,
-    team: `<div class="card"><div class="card-head"><h2>Team</h2><span class="spacer"></span>${owner ? `<button class="btn btn-primary btn-sm" id="t-add">${icon('plus', 'sm')}Add person</button>` : ''}</div>
+    team: `<div class="card"><div class="card-head"><h2>${t('Team')}</h2><span class="spacer"></span>${owner ? `<button class="btn btn-primary btn-sm" id="t-add">${icon('plus', 'sm')}${t('Add person')}</button>` : ''}</div>
       <div class="list">${team.map((u) => `<div class="list-row" style="grid-template-columns:minmax(0,1fr) auto auto">
-        <div class="who-cell">${avatar(u.name)}<div><div class="name-line">${esc(u.name)}${u.id === me.user.id ? ' <span class="muted small">(you)</span>' : ''}</div><div class="sub-line">${esc(u.email)}</div></div></div>
-        <span class="pill plain ${u.role === 'owner' ? 'picked_up' : 'received'}">${u.role === 'owner' ? 'Owner' : 'Staff'}</span>
-        <div>${owner && u.id !== me.user.id ? `<button class="btn btn-ghost btn-icon" data-remove="${u.id}" title="Remove" aria-label="Remove ${esc(u.name)}">${icon('trash', 'sm')}</button>` : ''}</div>
+        <div class="who-cell">${avatar(u.name)}<div><div class="name-line">${esc(u.name)}${u.id === me.user.id ? ` <span class="muted small">${t('(you)')}</span>` : ''}</div><div class="sub-line">${esc(u.email)}</div></div></div>
+        <span class="pill plain ${u.role === 'owner' ? 'picked_up' : 'received'}">${u.role === 'owner' ? t('Owner') : t('Staff')}</span>
+        <div>${owner && u.id !== me.user.id ? `<button class="btn btn-ghost btn-icon" data-remove="${u.id}" title="${esc(t('Remove'))}" aria-label="${esc(t('Remove {name}', { name: u.name }))}">${icon('trash', 'sm')}</button>` : ''}</div>
       </div>`).join('')}</div>
-      <div class="save-bar" style="justify-content:flex-start"><span class="small muted">Staff can manage orders and customers. Owners can also change settings, prices and the team.</span></div></div>`,
-    account: `<div class="card"><div class="card-head"><h2>Change your password</h2></div>
+      <div class="save-bar" style="justify-content:flex-start"><span class="small muted">${t('Staff can manage orders and customers. Owners can also change settings, prices and the team.')}</span></div></div>`,
+    account: `<div class="card"><div class="card-head"><h2>${t('Change your password')}</h2></div>
       <form class="card-body form" id="pw">
-        <label class="field">Current password<input name="current_password" type="password" autocomplete="current-password" required></label>
-        <label class="field">New password<input name="new_password" type="password" autocomplete="new-password" minlength="8" required><span class="help">At least 8 characters</span></label>
-        <div class="full"><button class="btn btn-primary">Update password</button></div>
+        <label class="field">${t('Current password')}<input name="current_password" type="password" autocomplete="current-password" required></label>
+        <label class="field">${t('New password')}<input name="new_password" type="password" autocomplete="new-password" minlength="8" required><span class="help">${t('At least 8 characters')}</span></label>
+        <div class="full"><button class="btn btn-primary">${t('Update password')}</button></div>
       </form></div>`,
   };
 
   app.innerHTML = `
-    ${pageHead('Settings', owner ? '' : 'Only the shop owner can change shop settings.')}
+    ${pageHead(t('Settings'), owner ? '' : t('Only the shop owner can change shop settings.'))}
     <div class="grid sidebar-left">
-      <nav class="settings-nav">${SETTINGS_TABS.map(([k, ic, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${icon(ic, 'sm')}${l}</button>`).join('')}</nav>
+      <nav class="settings-nav">${SETTINGS_TABS.map(([k, ic, l]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${icon(ic, 'sm')}${t(l)}</button>`).join('')}</nav>
       <div id="pane">${panes[tab]}</div>
     </div>`;
 
@@ -1018,7 +1038,7 @@ views.settings = async (_, query) => {
     const saved = await api('PUT', '/settings', body);
     me.shop.name = saved.business_name;
     $('#brand').textContent = saved.business_name;
-    toast('Settings saved');
+    toast(t('Settings saved'));
   })));
   $$('[data-test]').forEach((b) => (b.onclick = () => busy(b, async () => {
     const channel = b.dataset.test;
@@ -1026,25 +1046,25 @@ views.settings = async (_, query) => {
   })));
   if ($('#t-add')) {
     $('#t-add').onclick = () => {
-      const m = modal('Add a team member', `<form class="card-body stack" id="tf">
-        <label class="field">Name<input name="name" required></label>
-        <label class="field">Email<input name="email" type="email" required></label>
-        <label class="field">Temporary password<input name="password" minlength="8" required><span class="help">Share it with them. They can change it under My account.</span></label>
-        <label class="field">Role<select name="role"><option value="staff">Staff — orders and customers</option><option value="owner">Owner — everything</option></select></label>
-        <div class="row"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Add</button></div></form>`);
+      const m = modal(t('Add a team member'), `<form class="card-body stack" id="tf">
+        <label class="field">${t('Name')}<input name="name" required></label>
+        <label class="field">${t('Email')}<input name="email" type="email" required></label>
+        <label class="field">${t('Temporary password')}<input name="password" minlength="8" required><span class="help">${t('Share it with them. They can change it under My account.')}</span></label>
+        <label class="field">${t('Role')}<select name="role"><option value="staff">${t('Staff — orders and customers')}</option><option value="owner">${t('Owner — everything')}</option></select></label>
+        <div class="row"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-close>${t('Cancel')}</button><button class="btn btn-primary">${t('Add')}</button></div></form>`);
       $('#tf', m.el).onsubmit = (e) => {
         e.preventDefault();
         busy(e.submitter, async () => {
           await api('POST', '/team', Object.fromEntries(new FormData(e.target)));
           m.close();
-          toast('Team member added');
+          toast(t('Team member added'));
           route();
         });
       };
     };
   }
   $$('[data-remove]').forEach((b) => (b.onclick = () => {
-    if (!confirm('Remove this person? They will be logged out.')) return;
+    if (!confirm(t('Remove this person? They will be logged out.'))) return;
     busy(b, async () => { await api('DELETE', '/team/' + b.dataset.remove); route(); });
   }));
   if ($('#pw')) {
@@ -1053,7 +1073,7 @@ views.settings = async (_, query) => {
       busy(e.submitter, async () => {
         await api('PUT', '/me/password', Object.fromEntries(new FormData(e.target)));
         e.target.reset();
-        toast('Password updated');
+        toast(t('Password updated'));
       });
     };
   }
@@ -1073,11 +1093,15 @@ const ROUTES = [
   [/^\/settings$/, views.settings, 'settings'],
 ];
 
+// A view can expose its in-progress state here so a language switch can redraw
+// the page without losing it (the new order screen uses this).
+let viewState = null;
 let lastPath = null;
-async function route() {
+async function route(restore) {
   const [path, qs] = location.hash.slice(1).split('?');
   const query = new URLSearchParams(qs || '');
   $('#shell').classList.remove('nav-open');
+  viewState = null;
   for (const [re, view, nav] of ROUTES) {
     const m = (path || '/').match(re);
     if (!m) continue;
@@ -1086,15 +1110,34 @@ async function route() {
     const samePage = lastPath === path;
     const y = window.scrollY;
     try {
-      await view(m.slice(1), query);
+      await view(m.slice(1), query, restore);
     } catch (e) {
-      app.innerHTML = `<div class="card">${emptyState('alert', 'Something went wrong', esc(e.message), '<a class="btn" href="#/dashboard">Back to dashboard</a>')}</div>`;
+      app.innerHTML = `<div class="card">${emptyState('alert', t('Something went wrong'), esc(e.message), `<a class="btn" href="#/dashboard">${t('Back to dashboard')}</a>`)}</div>`;
     }
     window.scrollTo(0, samePage ? y : 0);
     lastPath = path;
     return;
   }
   location.hash = '#/dashboard';
+}
+
+// Redraw the current page in the new language, keeping anything typed so far.
+async function switchLanguage() {
+  if (!me) return;
+  $('#role').textContent = me.user.role === 'owner' ? t('Owner') : t('Staff');
+  const typed = $$('input, textarea, select', app)
+    .filter((el) => (el.id || el.name) && el.type !== 'file')
+    .map((el) => ({ key: el.id ? '#' + el.id : `[name="${el.name}"]`, value: el.value, checked: el.checked }));
+  await route(viewState ? viewState() : undefined);
+  for (const { key, value, checked } of typed) {
+    const el = $(key, app);
+    if (!el) continue;
+    if (el.type === 'checkbox' || el.type === 'radio') el.checked = checked;
+    else if (el.value !== value) {
+      el.value = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
 }
 
 $('#logout').onclick = async () => {
@@ -1105,13 +1148,15 @@ $('#menu').onclick = () => $('#shell').classList.add('nav-open');
 $('#scrim').onclick = () => $('#shell').classList.remove('nav-open');
 
 hydrateIcons();
-window.addEventListener('hashchange', route);
+I18N.mount();
+I18N.onChange(switchLanguage);
+window.addEventListener('hashchange', () => route());
 api('GET', '/me')
   .then((m) => {
     me = m;
     $('#brand').textContent = m.shop.name;
     $('#who').textContent = m.user.name;
-    $('#role').textContent = m.user.role;
+    $('#role').textContent = m.user.role === 'owner' ? t('Owner') : t('Staff');
     $('#me-avatar').outerHTML = avatar(m.user.name);
     route();
   })

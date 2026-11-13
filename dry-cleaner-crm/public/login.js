@@ -22,7 +22,7 @@ async function post(path, body) {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status})`);
+  if (!res.ok) throw new Error(data.error ? I18N.tErr(data.error) : I18N.t('Something went wrong ({status})', { status: res.status }));
   return data;
 }
 
@@ -50,6 +50,9 @@ for (const form of views) {
   });
 }
 
+I18N.mount();
+// Errors already on screen were in the old language; clear them on a switch.
+I18N.onChange(() => document.querySelectorAll('.error').forEach((el) => (el.textContent = '')));
 window.addEventListener('hashchange', show);
 // Already logged in? Go straight to the app.
 fetch('/api/me').then((r) => r.ok && !location.hash.startsWith('#reset') && location.replace('/'));

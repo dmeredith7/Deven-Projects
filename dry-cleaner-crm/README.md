@@ -31,6 +31,12 @@ It needs **no dependencies**: just Node.js.
 - The message log shows every text and email with its result: sent, failed (with the reason), skipped or logged
 - "Send a test" buttons in Settings to confirm texts and emails really arrive
 
+**Languages**
+- English and Korean. A switch in the sidebar (top bar on phones, and on the
+  login page) changes every page at once; the choice is remembered in that
+  browser. Translations live in `public/i18n.js`, and a test fails if any
+  interface text is missing its Korean.
+
 **Shop operations**
 - Works with the shop's own pre-numbered paper tickets: staff type the
   ticket number when writing up an order (chosen at sign-up, changeable in

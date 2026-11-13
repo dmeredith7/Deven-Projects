@@ -6,7 +6,7 @@
   <title>Dry Cleaner CRM</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -16,35 +16,38 @@
         <div class="brand-mark" data-icon="hanger"></div>
         <div style="min-width:0">
           <div class="brand-name" id="brand">Dry Cleaner CRM</div>
-          <div class="brand-sub">Front counter</div>
+          <div class="brand-sub" data-i18n="Front counter">Front counter</div>
         </div>
       </div>
-      <a class="btn btn-primary new-order" href="#/orders/new"><span data-icon="plus"></span>New order</a>
+      <a class="btn btn-primary new-order" href="#/orders/new"><span data-icon="plus"></span><span data-i18n="New order">New order</span></a>
       <nav class="nav">
-        <a href="#/dashboard" data-nav="dashboard"><span data-icon="home"></span>Dashboard</a>
-        <a href="#/orders" data-nav="orders"><span data-icon="receipt"></span>Orders</a>
-        <a href="#/customers" data-nav="customers"><span data-icon="users"></span>Customers</a>
-        <a href="#/messages" data-nav="messages"><span data-icon="message"></span>Messages</a>
-        <a href="#/services" data-nav="services"><span data-icon="tag"></span>Price list</a>
-        <a href="#/settings" data-nav="settings"><span data-icon="settings"></span>Settings</a>
+        <a href="#/dashboard" data-nav="dashboard"><span data-icon="home"></span><span data-i18n="Dashboard">Dashboard</span></a>
+        <a href="#/orders" data-nav="orders"><span data-icon="receipt"></span><span data-i18n="Orders">Orders</span></a>
+        <a href="#/customers" data-nav="customers"><span data-icon="users"></span><span data-i18n="Customers">Customers</span></a>
+        <a href="#/messages" data-nav="messages"><span data-icon="message"></span><span data-i18n="Messages">Messages</span></a>
+        <a href="#/services" data-nav="services"><span data-icon="tag"></span><span data-i18n="Price list">Price list</span></a>
+        <a href="#/settings" data-nav="settings"><span data-icon="settings"></span><span data-i18n="Settings">Settings</span></a>
       </nav>
+      <div class="lang-slot" data-lang-toggle="dark"></div>
       <div class="sidebar-foot">
         <div class="avatar" id="me-avatar"></div>
         <div class="who"><div id="who"></div><span id="role"></span></div>
-        <button class="icon-btn" id="logout" title="Log out" aria-label="Log out"><span data-icon="logout"></span></button>
+        <button class="icon-btn" id="logout" title="Log out" aria-label="Log out" data-i18n-title="Log out" data-i18n-aria="Log out"><span data-icon="logout"></span></button>
       </div>
     </aside>
     <div class="scrim" id="scrim"></div>
     <div class="content">
       <header class="topbar">
-        <button class="icon-btn" id="menu" aria-label="Open menu"><span data-icon="menu"></span></button>
+        <button class="icon-btn" id="menu" aria-label="Open menu" data-i18n-aria="Open menu"><span data-icon="menu"></span></button>
         <div class="title" id="topbar-title">Dry Cleaner CRM</div>
-        <a class="btn btn-primary btn-sm" href="#/orders/new"><span data-icon="plus"></span>New</a>
+        <div data-lang-toggle="compact"></div>
+        <a class="btn btn-primary btn-sm" href="#/orders/new"><span data-icon="plus"></span><span data-i18n="New">New</span></a>
       </header>
-      <main id="app"><div class="loading">Loading…</div></main>
+      <main id="app"><div class="loading" data-i18n="Loading…">Loading…</div></main>
     </div>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/i18n.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
