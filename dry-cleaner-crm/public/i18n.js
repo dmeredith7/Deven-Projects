@@ -384,6 +384,24 @@
     'You’ll be logged in right after.': '설정 후 바로 로그인됩니다.',
     'Save password': '비밀번호 저장',
 
+    // The starting price list every new shop gets (src/db.js). Shown in Korean;
+    // items a shop adds or renames itself stay as typed.
+    'Shirt - Launder & Press': '셔츠 - 세탁 및 다림질',
+    'Pants / Slacks': '바지 / 슬랙스',
+    'Suit (2 pc)': '정장 (2피스)',
+    'Blazer / Jacket': '블레이저 / 재킷',
+    'Dress': '원피스',
+    'Skirt': '치마',
+    'Sweater': '스웨터',
+    'Coat / Overcoat': '코트 / 오버코트',
+    'Comforter': '이불',
+    'Hem Pants': '바지 기장 수선',
+    'Wash & Fold (per lb)': '물세탁 및 개기 (파운드당)',
+    'Dry Clean': '드라이클리닝',
+    'Laundry': '물세탁',
+    'Household': '침구·생활',
+    'Alterations': '수선',
+
     // Messages from the server
     'A valid email address is required': '올바른 이메일 주소를 입력하세요',
     'An account with that email already exists. Try logging in.': '이미 가입된 이메일입니다. 로그인해 보세요.',

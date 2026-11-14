@@ -60,3 +60,9 @@ test('the language switch appears on every page', () => {
   assert.match(pub('login.html'), /data-lang-toggle/); // login, sign-up, password reset
   for (const f of ['index.html', 'login.html']) assert.match(pub(f), /<script src="\/i18n\.js"><\/script>/);
 });
+
+test('the starting price list (names and categories) has Korean', () => {
+  const { DEFAULT_SERVICES } = require('../src/db');
+  const missing = [...new Set(DEFAULT_SERVICES.flatMap(([name, category]) => [name, category]))].filter((s) => KO[s] == null);
+  assert.deepEqual(missing, [], 'starting price list entries without Korean');
+});

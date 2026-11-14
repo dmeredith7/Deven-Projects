@@ -20,6 +20,14 @@ const parseUtc = (s) => new Date(String(s).replace(' ', 'T') + 'Z');
 const dateTime = (s) => (s ? parseUtc(s).toLocaleString(L(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 const shortDate = (s) => (s ? parseUtc(s).toLocaleDateString(L(), { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const cleanTicket = (v) => String(v || '').trim().replace(/^#/, '').replace(/\s+/g, '').toUpperCase();
+// Price-list names are stored as entered. The starting list has translations,
+// so show those; anything a shop typed itself comes back unchanged.
+const itemName = (name) => t(String(name ?? ''));
+// Order lines are saved as "Service — note"; translate the service part.
+const itemText = (desc) => {
+  const [name, ...note] = String(desc ?? '').split(' — ');
+  return [itemName(name), ...note].join(' — ');
+};
 
 function dueLabel(d) {
   if (!d) return '';
@@ -469,14 +477,14 @@ views.newOrder = async (_, query, restore) => {
 
   // --- items ---
   const renderTiles = () => {
-    $('#cats').innerHTML = ['', ...categories].map((c) => `<button class="chip ${c === category ? 'active' : ''}" data-cat="${esc(c)}">${esc(c || t('All'))}</button>`).join('');
+    $('#cats').innerHTML = ['', ...categories].map((c) => `<button class="chip ${c === category ? 'active' : ''}" data-cat="${esc(c)}">${esc(c ? itemName(c) : t('All'))}</button>`).join('');
     $$('[data-cat]').forEach((b) => (b.onclick = () => { category = b.dataset.cat; renderTiles(); }));
     const shown = active.filter((s) => !category || s.category === category);
     $('#tiles').innerHTML = shown.length
       ? shown.map((s) => {
           const n = cart.filter((l) => l.service_id === s.id).reduce((a, l) => a + l.qty, 0);
           return `<button class="service-tile ${n ? 'in-cart' : ''}" data-svc="${s.id}">${n ? `<span class="qty-badge">${n}</span>` : ''}
-            <span class="name">${esc(s.name)}</span><span class="price">${money(s.price_cents)}</span></button>`;
+            <span class="name">${esc(itemName(s.name))}</span><span class="price">${money(s.price_cents)}</span></button>`;
         }).join('')
       : `<p class="muted small">${t('No services yet.')} ${isOwner() ? `<a href="#/services">${t('Add some to your price list.')}</a>` : ''}</p>`;
     $$('[data-svc]').forEach((b) => (b.onclick = () => {
@@ -496,7 +504,7 @@ views.newOrder = async (_, query, restore) => {
       return;
     }
     box.innerHTML = cart.map((l) => `<div class="cart-item" data-key="${l.key}">
-      <div class="name-line">${esc(l.name)}</div><div class="strong num">${money(l.qty * l.price_cents)}</div>
+      <div class="name-line">${esc(itemName(l.name))}</div><div class="strong num">${money(l.qty * l.price_cents)}</div>
       <div class="controls">
         <div class="stepper"><button type="button" data-dec aria-label="${esc(t('Fewer'))}">${icon('minus', 'sm')}</button><span>${l.qty}</span><button type="button" data-inc aria-label="${esc(t('More'))}">${icon('plus', 'sm')}</button></div>
         <input class="note" placeholder="${esc(t('Color, brand, stain…'))}" value="${esc(l.note)}">
@@ -604,7 +612,7 @@ views.order = async ([id]) => {
         <div class="card">
           <div class="card-head">${icon('shirt')}<h2>${t('Items')}</h2><span class="spacer"></span><span class="hint">${tn(o.piece_count, '{n} piece', '{n} pieces')}</span></div>
           <table class="items-table"><thead><tr><th>${t('Item')}</th><th class="num">${t('Qty')}</th><th class="num hide-md">${t('Each')}</th><th class="num">${t('Total')}</th></tr></thead>
-            <tbody>${o.items.map((i) => `<tr><td>${esc(i.description)}</td><td class="num">${i.qty}</td><td class="num hide-md">${money(i.price_cents)}</td><td class="num">${money(i.qty * i.price_cents)}</td></tr>`).join('')}</tbody></table>
+            <tbody>${o.items.map((i) => `<tr><td>${esc(itemText(i.description))}</td><td class="num">${i.qty}</td><td class="num hide-md">${money(i.price_cents)}</td><td class="num">${money(i.qty * i.price_cents)}</td></tr>`).join('')}</tbody></table>
           <div class="card-body">
             <div class="totals" style="max-width:320px;margin-left:auto">
               <div><span>${t('Subtotal')}</span><span>${money(o.subtotal_cents)}</span></div>
@@ -666,7 +674,7 @@ views.order = async ([id]) => {
       <div>${esc(o.customer_name)} ${esc(o.customer_phone)}</div>
       <div>${t('In: {date}', { date: shortDate(o.created_at) })} &nbsp; ${t('Due: {date}', { date: esc(o.due_date) })}</div>
       ${o.rack ? `<div>${t('Rack: {rack}', { rack: esc(o.rack) })}</div>` : ''}
-      <hr><table>${o.items.map((i) => `<tr><td>${i.qty} × ${esc(i.description)}</td><td style="text-align:right">${money(i.qty * i.price_cents)}</td></tr>`).join('')}</table><hr>
+      <hr><table>${o.items.map((i) => `<tr><td>${i.qty} × ${esc(itemText(i.description))}</td><td style="text-align:right">${money(i.qty * i.price_cents)}</td></tr>`).join('')}</table><hr>
       <table><tr><td>${t('Total')}</td><td style="text-align:right">${money(o.total_cents)}</td></tr>
       <tr><td>${t('Amount paid')}</td><td style="text-align:right">${money(o.paid_cents)}</td></tr>
       <tr><td><strong>${t('Balance')}</strong></td><td style="text-align:right"><strong>${money(o.balance_cents)}</strong></td></tr></table>
@@ -866,9 +874,9 @@ views.services = async () => {
       owner ? `<button class="btn btn-primary" id="add">${icon('plus')}${t('Add service')}</button>` : '')}
     <div class="stack">${
       cats.length
-        ? cats.map((cat) => `<div class="card"><div class="card-head"><h2>${esc(cat)}</h2><span class="spacer"></span><span class="hint">${tn(list.filter((s) => s.category === cat).length, '{n} service', '{n} services')}</span></div>
+        ? cats.map((cat) => `<div class="card"><div class="card-head"><h2>${esc(itemName(cat))}</h2><span class="spacer"></span><span class="hint">${tn(list.filter((s) => s.category === cat).length, '{n} service', '{n} services')}</span></div>
           ${list.filter((s) => s.category === cat).map((s) => `<div class="price-row ${s.active ? '' : 'inactive'}" data-id="${s.id}">
-            <input class="name-input" value="${esc(s.name)}" ${owner ? '' : 'disabled'} aria-label="${esc(t('Service name'))}">
+            <input class="name-input" value="${esc(itemName(s.name))}" ${owner ? '' : 'disabled'} aria-label="${esc(t('Service name'))}">
             <div class="money-input"><input class="price" inputmode="decimal" value="${dollars(s.price_cents)}" ${owner ? '' : 'disabled'} aria-label="${esc(t('Price'))}"></div>
             <div class="row tight">${owner ? `
               <label class="check small" title="${esc(t('Show when creating orders'))}"><input type="checkbox" class="active" ${s.active ? 'checked' : ''}><span class="hide-md">${t('Active')}</span></label>
@@ -899,8 +907,8 @@ views.services = async () => {
     const m = modal(t('Add service'), `<form class="card-body stack" id="sf">
       <label class="field">${t('Service name')}<input name="name" required placeholder="${esc(t('e.g. Silk blouse'))}"></label>
       <div class="form" style="grid-template-columns:1fr 1fr">
-        <label class="field">${t('Category')}<input name="category" list="cat-list" value="${esc(cats[0] || 'Dry Clean')}" required>
-          <datalist id="cat-list">${cats.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></label>
+        <label class="field">${t('Category')}<input name="category" list="cat-list" value="${esc(itemName(cats[0] || 'Dry Clean'))}" required>
+          <datalist id="cat-list">${cats.map((c) => `<option value="${esc(itemName(c))}">`).join('')}</datalist></label>
         <label class="field">${t('Price')}<div class="money-input"><input name="price" inputmode="decimal" placeholder="0.00" required></div></label>
       </div>
       <div class="row"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-close>${t('Cancel')}</button><button class="btn btn-primary">${t('Add service')}</button></div></form>`);
@@ -908,7 +916,9 @@ views.services = async () => {
       e.preventDefault();
       const f = e.target;
       busy(e.submitter, async () => {
-        await api('POST', '/services', { name: f.name.value, category: f.category.value, price_cents: toCents(f.price.value) });
+        // Picking a translated category files the service under the existing one.
+        const category = cats.find((c) => itemName(c) === f.category.value.trim()) || f.category.value;
+        await api('POST', '/services', { name: f.name.value, category, price_cents: toCents(f.price.value) });
         m.close();
         toast(t('Service added'));
         route();

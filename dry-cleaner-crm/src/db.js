@@ -233,4 +233,4 @@ function getSettings(db, shopId) {
   return out;
 }
 
-module.exports = { open, secret, createShop, getSettings, DEFAULT_SETTINGS };
+module.exports = { open, secret, createShop, getSettings, DEFAULT_SETTINGS, DEFAULT_SERVICES };
