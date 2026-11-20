@@ -23,5 +23,7 @@ services:
         value: "1"
       # Creates the demo shop (demo@example.com / demo1234) on startup.
       # Set to 0 once real shops are using the site, then delete the demo shop.
+      # Admin login: add ADMIN_EMAIL and ADMIN_PASSWORD (10+ characters) in the
+      # Render dashboard under Environment. Don't put them in this file.
       - key: SEED_DEMO
         value: "1"

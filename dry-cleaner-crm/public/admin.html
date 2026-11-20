@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title data-i18n="Admin · Dry Cleaner CRM">Admin · Dry Cleaner CRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="admin-top">
+    <a class="brand" href="#/">
+      <div class="brand-mark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7.5a2.2 2.2 0 1 1 2.2-2.2"/><path d="M12 7.5v1.3l-8.3 6.1A1.6 1.6 0 0 0 4.6 18h14.8a1.6 1.6 0 0 0 .9-3.1L12 8.8"/></svg></div>
+      <span class="brand-name">Dry Cleaner CRM</span>
+      <span class="admin-badge" data-i18n="Admin">Admin</span>
+    </a>
+    <span class="spacer"></span>
+    <div data-lang-toggle="dark"></div>
+    <span class="admin-who" id="admin-who" hidden></span>
+    <button class="icon-btn" id="admin-logout" hidden title="Log out" aria-label="Log out" data-i18n-title="Log out" data-i18n-aria="Log out">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+    </button>
+  </header>
+  <main id="app"><div class="loading" data-i18n="Loading…">Loading…</div></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/i18n.js"></script>
+  <script src="/admin.js"></script>
+</body>
+</html>

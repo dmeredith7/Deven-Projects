@@ -37,6 +37,19 @@ It needs **no dependencies**: just Node.js.
   browser. Translations live in `public/i18n.js`, and a test fails if any
   interface text is missing its Korean.
 
+**Platform admin (for you, the operator)**
+- Dashboard of every partner shop: partners, active shops, orders, sales,
+  customers, active orders, and texts/emails sent in the last 30 days
+- Searchable, sortable list of partners with status (active this month,
+  just joined, no recent orders)
+- Each partner's numbers, business details, notification setup, team,
+  recent orders and messages
+- "Open their app": see a shop's app as its owner for support (2-hour
+  session, with a banner and a button back to admin)
+- Reach it from the **Admin** link at the bottom of the login page, or by
+  entering the admin email and password in the normal login form. It's off
+  until you set `ADMIN_EMAIL` and `ADMIN_PASSWORD` (at least 10 characters).
+
 **Shop operations**
 - Works with the shop's own pre-numbered paper tickets: staff type the
   ticket number when writing up an order (chosen at sign-up, changeable in
@@ -112,6 +125,7 @@ name, and replies go to the shop's business email (set in Settings).
 | `PORT` | `3000` | Web server port |
 | `DB_PATH` | `data/crm.db` | SQLite database file |
 | `PUBLIC_URL` | _(none)_ | Public address, e.g. `https://crm.example.com`. Used in email links and Twilio verification. Starting with `https://` also makes cookies secure. |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | _(none)_ | Your platform admin login (password at least 10 characters). Admin is off until both are set |
 | `ALLOW_SIGNUP` | `1` | Set `0` to stop new shops signing up |
 | `TRUST_PROXY` | `0` | Set `1` behind a reverse proxy so rate limiting sees real client IPs |
 | `COOKIE_SECURE` | `0` | Force secure cookies if `PUBLIC_URL` isn't https |

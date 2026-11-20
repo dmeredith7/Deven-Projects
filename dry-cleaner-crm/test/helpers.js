@@ -31,15 +31,21 @@ async function start({ sms = true, email = true, env = {}, publicUrl = 'https://
 
   // A tiny cookie-keeping client, one per simulated browser.
   function client() {
-    let cookie = '';
+    const jar = new Map();
+    const cookieHeader = () => [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
     const call = async (method, path, body, headers = {}) => {
       const res = await fetch(base + path, {
         method,
-        headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}), ...headers },
+        headers: { 'Content-Type': 'application/json', ...(jar.size ? { Cookie: cookieHeader() } : {}), ...headers },
         body: body ? JSON.stringify(body) : undefined,
       });
-      const set = res.headers.get('set-cookie');
-      if (set) cookie = set.split(';')[0].endsWith('=') ? '' : set.split(';')[0];
+      for (const c of res.headers.getSetCookie()) {
+        const [pair] = c.split(';');
+        const i = pair.indexOf('=');
+        const [k, v] = [pair.slice(0, i), pair.slice(i + 1)];
+        if (v) jar.set(k, v);
+        else jar.delete(k);
+      }
       const text = await res.text();
       let data;
       try {
@@ -49,7 +55,7 @@ async function start({ sms = true, email = true, env = {}, publicUrl = 'https://
       }
       return { status: res.status, data, headers: res.headers };
     };
-    return { call, get cookie() { return cookie; } };
+    return { call, jar, get cookie() { return cookieHeader(); } };
   }
 
   let n = 0;

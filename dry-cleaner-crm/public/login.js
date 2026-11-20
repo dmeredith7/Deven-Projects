@@ -27,7 +27,8 @@ async function post(path, body) {
 }
 
 const handlers = {
-  login: (d) => post('/auth/login', d).then(() => location.replace('/')),
+  // The platform admin can use this form too; they land on the admin pages.
+  login: (d) => post('/auth/login', d).then((r) => location.replace(r.admin ? '/admin.html' : '/')),
   signup: (d) => post('/auth/signup', d).then(() => location.replace('/#/settings')),
   forgot: (d, form) => post('/auth/forgot', d).then(() => (form.querySelector('.notice').hidden = false)),
   reset: (d) => post('/auth/reset', { ...d, token: resetToken }).then(() => location.replace('/')),

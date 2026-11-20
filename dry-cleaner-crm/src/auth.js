@@ -71,10 +71,10 @@ function createAuth(db, notifier, { publicUrl = process.env.PUBLIC_URL || '' } =
   const loginLimiter = createLimiter({ max: 10, windowMs: 15 * 60 * 1000 });
   const resetLimiter = createLimiter({ max: 5, windowMs: 60 * 60 * 1000 });
 
-  function createSession(userId) {
+  function createSession(userId, { hours = SESSION_DAYS * 24, impersonated = false } = {}) {
     const token = crypto.randomBytes(32).toString('base64url');
-    db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(
-      sha256(token), userId, future(SESSION_DAYS * 864e5)
+    db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at, impersonated) VALUES (?, ?, ?, ?)').run(
+      sha256(token), userId, future(hours * 36e5), impersonated ? 1 : 0
     );
     return token;
   }
@@ -83,7 +83,7 @@ function createAuth(db, notifier, { publicUrl = process.env.PUBLIC_URL || '' } =
     if (!token) return null;
     const row = db
       .prepare(
-        `SELECT u.*, s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`
+        `SELECT u.*, s.expires_at, s.impersonated FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`
       )
       .get(sha256(token));
     if (!row) return null;
@@ -209,8 +209,8 @@ function createAuth(db, notifier, { publicUrl = process.env.PUBLIC_URL || '' } =
 
   return {
     signup, login, forgotPassword, resetPassword, changePassword,
-    userForToken, destroySession, listTeam, addTeamMember, removeTeamMember, publicUser,
+    userForToken, destroySession, createSession, listTeam, addTeamMember, removeTeamMember, publicUser,
   };
 }
 
-module.exports = { createAuth, hashPassword, verifyPassword, SESSION_DAYS };
+module.exports = { createAuth, createLimiter, hashPassword, verifyPassword, SESSION_DAYS };

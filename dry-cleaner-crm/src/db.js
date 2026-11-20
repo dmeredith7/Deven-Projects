@@ -33,6 +33,13 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash    TEXT PRIMARY KEY,
   user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at    TEXT NOT NULL,
+  impersonated  INTEGER NOT NULL DEFAULT 0   -- 1 = platform admin viewing this shop
+);
+
+-- Sessions for the platform admin (the person running this service).
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  token_hash    TEXT PRIMARY KEY,
   expires_at    TEXT NOT NULL
 );
 
@@ -181,6 +188,11 @@ function open(dbPath) {
   }
   dropTicketUniqueness(db);
   db.exec(SCHEMA);
+  // Columns added after release: add them to databases created earlier.
+  const sessionCols = db.prepare("SELECT name FROM pragma_table_info('sessions')").all().map((c) => c.name);
+  if (!sessionCols.includes('impersonated')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN impersonated INTEGER NOT NULL DEFAULT 0');
+  }
   return db;
 }
 

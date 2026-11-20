@@ -95,7 +95,7 @@ function parseChannels(v) {
 // Returns async handle(ctx) where ctx = { method, pathname, query, body, user,
 // ip, setSession, clearSession }. Each route declares who may call it:
 // 'public', 'user' (any logged-in user) or 'owner'.
-function createApi(db, notifier, auth) {
+function createApi(db, notifier, auth, admin = null) {
   const routes = [];
   const route = (method, pattern, access, fn) => {
     const keys = [];
@@ -122,7 +122,12 @@ function createApi(db, notifier, auth) {
     setSession(r.token);
     return { user: r.user };
   });
-  route('POST', '/api/auth/login', 'public', ({ body, ip, setSession }) => {
+  route('POST', '/api/auth/login', 'public', ({ body, ip, setSession, setAdminSession }) => {
+    // The platform admin can sign in from the normal login form too.
+    if (admin && admin.matches(body)) {
+      setAdminSession(admin.createSession());
+      return { admin: true };
+    }
     const r = auth.login(body, ip);
     setSession(r.token);
     return { user: r.user };
@@ -140,7 +145,27 @@ function createApi(db, notifier, auth) {
   route('GET', '/api/me', 'user', ({ user }) => ({
     user: auth.publicUser(user),
     shop: { id: user.shop_id, name: getSettings(db, user.shop_id).business_name },
+    impersonating: Boolean(user.impersonated), // the platform admin is viewing this shop
   }));
+
+  // ---- Platform admin ----
+  if (admin) {
+    route('POST', '/api/admin/login', 'public', ({ body, ip, setAdminSession }) => {
+      setAdminSession(admin.login(body, ip));
+      return { ok: true };
+    });
+    route('POST', '/api/admin/logout', 'public', ({ clearAdminSession }) => {
+      clearAdminSession();
+      return { ok: true };
+    });
+    route('GET', '/api/admin/me', 'admin', ({ admin: a }) => a);
+    route('GET', '/api/admin/overview', 'admin', () => admin.overview());
+    route('GET', '/api/admin/shops/:id', 'admin', ({ params }) => admin.shopDetail(params.id));
+    route('POST', '/api/admin/shops/:id/view', 'admin', ({ params, setSession }) => {
+      setSession(admin.viewAs(params.id), admin.VIEW_AS_HOURS * 3600);
+      return { ok: true };
+    });
+  }
   route('PUT', '/api/me/password', 'user', ({ user, body }) => auth.changePassword(user, body));
 
   // ---- Team ----
@@ -306,7 +331,9 @@ function createApi(db, notifier, auth) {
       if (r.method !== ctx.method) continue;
       const m = ctx.pathname.match(r.re);
       if (!m) continue;
-      if (r.access !== 'public') {
+      if (r.access === 'admin') {
+        if (!ctx.admin) throw new HttpError(401, 'Please log in');
+      } else if (r.access !== 'public') {
         if (!ctx.user) throw new HttpError(401, 'Please log in');
         if (r.access === 'owner' && ctx.user.role !== 'owner') throw new HttpError(403, 'Only the shop owner can do that');
       }

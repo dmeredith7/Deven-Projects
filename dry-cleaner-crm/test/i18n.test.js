@@ -14,14 +14,14 @@ const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1
 
 function uiKeys() {
   const keys = new Set();
-  const js = pub('app.js') + pub('login.js');
+  const js = pub('app.js') + pub('login.js') + pub('admin.js');
   const str = String.raw`'((?:[^'\\]|\\.)*)'`;
   for (const m of js.matchAll(new RegExp(String.raw`\b(?:t|N_|I18N\.t)\(\s*` + str, 'g'))) keys.add(m[1]);
   for (const m of js.matchAll(new RegExp(String.raw`\btn\([^,]+,\s*` + str + String.raw`,\s*` + str, 'g'))) {
     keys.add(m[1]);
     keys.add(m[2]);
   }
-  for (const f of ['index.html', 'login.html']) {
+  for (const f of ['index.html', 'login.html', 'admin.html']) {
     for (const m of pub(f).matchAll(/data-i18n(?:-placeholder|-title|-aria)?="([^"]*)"/g)) keys.add(m[1]);
   }
   return [...keys];
@@ -58,7 +58,8 @@ test('the language switch appears on every page', () => {
   assert.match(pub('index.html'), /data-lang-toggle="dark"/); // sidebar (desktop)
   assert.match(pub('index.html'), /data-lang-toggle="compact"/); // top bar (phones)
   assert.match(pub('login.html'), /data-lang-toggle/); // login, sign-up, password reset
-  for (const f of ['index.html', 'login.html']) assert.match(pub(f), /<script src="\/i18n\.js"><\/script>/);
+  assert.match(pub('admin.html'), /data-lang-toggle/); // platform admin
+  for (const f of ['index.html', 'login.html', 'admin.html']) assert.match(pub(f), /<script src="\/i18n\.js"><\/script>/);
 });
 
 test('the starting price list (names and categories) has Korean', () => {

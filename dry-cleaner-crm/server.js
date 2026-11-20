@@ -8,6 +8,7 @@ const db_ = require('./src/db');
 const { createNotifier, verifyUnsubscribe, escapeHtml } = require('./src/notify');
 const { createAuth, SESSION_DAYS } = require('./src/auth');
 const { createApi } = require('./src/api');
+const { createAdmin, MIN_PASSWORD } = require('./src/admin');
 const { startScheduler } = require('./src/reminders');
 const { transportsFromEnv, normalizePhone, validTwilioSignature } = require('./src/channels');
 
@@ -103,11 +104,15 @@ function createServer({
   db = db || db_.open(dbPath);
   const notifier = createNotifier(db, { transports, publicUrl });
   const auth = createAuth(db, notifier, { publicUrl });
-  const api = createApi(db, notifier, auth);
+  const admin = createAdmin(db, auth, { env });
+  const api = createApi(db, notifier, auth, admin);
   const secureCookie = publicUrl.startsWith('https://') || env.COOKIE_SECURE === '1';
 
   const sessionCookie = (token, maxAge) =>
     `sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
+  // The admin cookie is never sent on requests started from other sites.
+  const adminCookie = (token, maxAge) =>
+    `asid=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
 
   const clientIp = (req) =>
     (env.TRUST_PROXY === '1' && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) ||
@@ -178,23 +183,32 @@ function createServer({
         if (originHost !== req.headers.host) return send(res, 403, { error: 'Cross-site request blocked' });
       }
 
-      const token = parseCookies(req.headers.cookie).sid;
+      const cookies = parseCookies(req.headers.cookie);
+      const token = cookies.sid;
       const user = auth.userForToken(token);
       const headers = {};
+      const cookieOut = [];
       const ctx = {
         method: req.method,
         pathname: url.pathname,
         query: url.searchParams,
         body: ['POST', 'PUT', 'DELETE'].includes(req.method) ? await readBody(req) : {},
         user,
+        admin: admin.fromToken(cookies.asid),
         ip: clientIp(req),
-        setSession: (t) => (headers['Set-Cookie'] = sessionCookie(t, SESSION_DAYS * 86400)),
+        setSession: (t, maxAge = SESSION_DAYS * 86400) => cookieOut.push(sessionCookie(t, maxAge)),
         clearSession: () => {
           auth.destroySession(token);
-          headers['Set-Cookie'] = sessionCookie('', 0);
+          cookieOut.push(sessionCookie('', 0));
+        },
+        setAdminSession: (t) => cookieOut.push(adminCookie(t, admin.ADMIN_SESSION_HOURS * 3600)),
+        clearAdminSession: () => {
+          admin.destroySession(cookies.asid);
+          cookieOut.push(adminCookie('', 0));
         },
       };
       const data = await api(ctx);
+      if (cookieOut.length) headers['Set-Cookie'] = cookieOut;
       send(res, 200, data, headers);
     } catch (e) {
       const status = e.status || 500;
@@ -202,7 +216,7 @@ function createServer({
       send(res, status, { error: status === 500 ? 'Internal server error' : e.message });
     }
   });
-  return { server, db, notifier, auth };
+  return { server, db, notifier, auth, admin };
 }
 
 module.exports = { createServer };
@@ -220,6 +234,11 @@ if (require.main === module) {
     console.log(`Database: ${dbPath}`);
     console.log(`Texts:  ${notifier.modes.sms === 'log' ? 'not configured, logged only (set TWILIO_* to send)' : notifier.modes.sms}`);
     console.log(`Emails: ${notifier.modes.email === 'log' ? 'not configured, logged only (set EMAIL_* to send)' : notifier.modes.email}`);
+    console.log(
+      process.env.ADMIN_EMAIL && String(process.env.ADMIN_PASSWORD || '').length >= MIN_PASSWORD
+        ? `Admin: enabled for ${process.env.ADMIN_EMAIL}`
+        : `Admin: off (set ADMIN_EMAIL and an ADMIN_PASSWORD of at least ${MIN_PASSWORD} characters to turn it on)`
+    );
     if (!process.env.PUBLIC_URL && !process.env.RENDER_EXTERNAL_URL) console.log('Tip: set PUBLIC_URL so emails include unsubscribe links and Twilio replies can be verified.');
   });
 }

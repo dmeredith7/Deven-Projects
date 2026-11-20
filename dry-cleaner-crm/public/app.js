@@ -1131,9 +1131,26 @@ async function route(restore) {
   location.hash = '#/dashboard';
 }
 
+// Shown when the platform admin has opened this shop's app from the admin pages.
+function renderViewAsBar() {
+  $('#view-as')?.remove();
+  if (!me?.impersonating) return;
+  const bar = document.createElement('div');
+  bar.id = 'view-as';
+  bar.className = 'view-as-bar';
+  bar.innerHTML = `${icon('user', 'sm')}<span>${t('You’re viewing {shop} as admin. Changes you make are real.', { shop: `<strong>${esc(me.shop.name)}</strong>` })}</span>
+    <button class="btn btn-sm" id="back-admin">${icon('back', 'sm')}${t('Back to admin')}</button>`;
+  $('.content').prepend(bar);
+  $('#back-admin').onclick = async () => {
+    await api('POST', '/auth/logout').catch(() => {});
+    location.href = '/admin.html';
+  };
+}
+
 // Redraw the current page in the new language, keeping anything typed so far.
 async function switchLanguage() {
   if (!me) return;
+  renderViewAsBar();
   $('#role').textContent = me.user.role === 'owner' ? t('Owner') : t('Staff');
   const typed = $$('input, textarea, select', app)
     .filter((el) => (el.id || el.name) && el.type !== 'file')
@@ -1168,6 +1185,7 @@ api('GET', '/me')
     $('#who').textContent = m.user.name;
     $('#role').textContent = m.user.role === 'owner' ? t('Owner') : t('Staff');
     $('#me-avatar').outerHTML = avatar(m.user.name);
+    renderViewAsBar();
     route();
   })
   .catch(() => {});
